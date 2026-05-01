@@ -49,8 +49,8 @@ flowchart LR
     P15 --> P21 --> P22 --> P23 --> P24 --> P25
     P25 --> P26 --> P27 --> P28 --> P29 --> P210
 
-    class P01,P02,P03,P04,P06,P11,P12,P13,P14,P15,P21,P22,P25 done
-    class P05,P23,P24,P26,P27,P28,P29,P210 pending
+    class P01,P02,P03,P04,P06,P11,P12,P13,P14,P15,P21,P22,P23,P25,P27 done
+    class P05,P24,P26,P28,P29,P210 pending
 ```
 
 ---
@@ -320,6 +320,37 @@ The new `prisma-client` provider is TS-only (internally named `PrismaClientTs`) 
 
 ---
 
+## Phase 2.3 — Analytics + CSV exports ✅
+
+**Commit:** `438b409` — `feat(api): add analytics dashboard with csv exports for goals, items, audit`
+
+**Files written:**
+- `apps/api/src/modules/analytics/{service,controller,router}.js` — `GET /workspaces/:id/analytics` (any member) plus three CSV exports under `/workspaces/:id/export/{goals,action-items,audit}.csv`. Audit export is admin-only; the other two are member-readable since they're already authorized to read the underlying data.
+
+**Dashboard payload** (`Promise.all`-fanned-out, every query rides an existing index):
+- `goalsByStatus` / `itemsByStatus` / `itemsByPriority` — `prisma.groupBy` flattened to `{ STATUS: count }` maps for direct chart consumption.
+- `overdueCount` — `dueDate < now() AND status != 'DONE'`.
+- `completedByWeek` — `$queryRaw` with `DATE_TRUNC('week', updatedAt)` over the last 12 weeks. Uses `updatedAt` as the completion proxy; faithful as long as items don't bounce out of `DONE` (which is the spec's intended workflow). A dedicated `completedAt` would be more robust if items get reopened — not worth a migration for a take-home dashboard.
+- `topContributors` — `auditLog.groupBy({ by:['actorId'] })` ordered by count desc, joined with users for `{ user, actions }`. The audit log being the activity ledger means this is automatically every meaningful action a member took.
+
+**CSV exports** — `csvField()` quotes any value containing `"`, `,`, `\r`, `\n` and doubles embedded quotes (RFC 4180). Content-Type `text/csv; charset=utf-8`, Content-Disposition `attachment` with filename. Buffered (not streamed) — fine for the assessment data scale; would batch with cursor pagination at production volume.
+
+---
+
+## Phase 2.7 — Swagger / OpenAPI ✅ (bonus)
+
+**Commit:** `6558c55` — `feat(api): mount swagger ui and openapi spec at /api/docs`
+
+**Files written:**
+- `apps/api/src/docs/openapi.js` — hand-rolled OpenAPI 3.0.3 spec covering every endpoint across 14 tag groups (Auth, Users, Workspaces, Members, Invitations, Goals, Milestones, Action Items, Announcements, Reactions, Comments, Notifications, Analytics, Audit). Component schemas for the major entities (User, Workspace, Goal, ActionItem, Announcement, Notification, AuditLog, Error envelope) plus per-endpoint request bodies. Cookie-auth security scheme references the `at` cookie.
+- Mounted in `app.js` at:
+  - `GET /api/docs` — Swagger UI (helmet's default CSP blocks Swagger's inline scripts, so the UI subtree gets `contentSecurityPolicy: false` — scoped narrowly).
+  - `GET /api/openapi.json` — raw spec (for client codegen or programmatic consumers).
+
+**Why hand-rolled over `swagger-jsdoc`:** scattering 200+ lines of `@swagger` JSDoc across 14 router files would balloon every router file by 3–5×; centralizing the spec keeps router files focused on routing. Trade-off: spec drift if routes change and the spec isn't updated — mitigated by the route docs being narrative ("status changes auto-create a status_change update row"), so they shouldn't need touching for routine schema additions.
+
+---
+
 ## Combined verification — Phases 1.3 + 1.4 + 1.5
 
 One curl chain in `tmp/verify-1.3-1.5.sh` exercises every endpoint above: register two users (A=admin, B=member), create workspace, invite + accept, create goal, change status (auto status_change update), post manual update, create milestone @50%, bump to 100% (two milestone_progress updates), get goal (verify 4 updates / 1 milestone), cursor-paginate updates, create action item assigned to B with goalId, filter list, B moves it to `IN_PROGRESS`, A creates announcement with `<script>` + `javascript:` href (verify both stripped, `<strong>` kept), B (non-admin) tries to create announcement → 403, B reacts 👍, double-react → idempotent, comment with mention of A, list comments, list announcements (pinned-first with `_count`), remove reaction, double-DELETE → 204, cleanup. **18/18 assertions pass.**
@@ -337,21 +368,24 @@ One curl chain in `tmp/verify-1.3-1.5.sh` exercises every endpoint above: regist
 **Memory loaded automatically into next session:**
 - `MEMORY.md` index points to 8 memory files: user role (frontend eng learning backend), assessment context (deadline 2026-05-04, demo creds, GitHub URL), version bumps (Tiptap 3 / Recharts 3 / Sonner 2), and 5 feedback memories (concise commits / no auto-push / surface silent config / user runs dev commands / maintain PROGRESS.md).
 
-**Repo state at session end:** Phases 2.1 + 2.2 + 2.5 done. Realtime emits on every domain mutation; mentions persist Notification rows + push `notification:created` to the recipient's user room; every mutating service writes an atomic AuditLog row. Combined verifier in `tmp/verify-2.1-2.2-2.5.sh` (uses `socket.io-client` from workspace root + `tmp/ws-listen.mjs`). Backend feature surface ~85% — only analytics + Swagger remain before frontend.
+**Repo state at session end:** **backend feature-complete**. All 13 backend phases done: foundation (0.1–0.6), auth (1.1), workspaces/invites (1.2), goals/milestones/activity (1.3), action items (1.4), announcements/reactions/comments (1.5), realtime (2.1), mention notifications (2.2), audit log (2.5), analytics + CSV (2.3), Swagger (2.7). 40+ HTTP endpoints + 16 realtime events + atomic audit trail + JSON dashboard + CSV exports + OpenAPI 3 docs at `/api/docs`. Three verifier scripts in `tmp/`.
 
-**Next session priority: finish backend tail, then start frontend.**
+**Next session priority: frontend (Phases 0.5 → 2.4 → 2.6 → 2.8 → 2.9 → 2.10).** This is the largest remaining body of work — recommend running on **Sonnet 4.6** for cost (frontend scaffolding is its sweet spot; Opus tokens are best saved for deploy and the README/video framing).
 
-**Phase 2.3 — Analytics + CSV**
-- `modules/analytics/{service,controller,router}.js` — workspace-scoped JSON aggregates for the dashboard: goals by status, action-items by status (kanban totals), action-items overdue by assignee, items completed per week (last 12), top contributors. Existing indexes `workspaceId+status` / `workspaceId+dueDate` cover all of these — no new migrations.
-- CSV stream endpoint per resource (`GET /workspaces/:id/export/goals.csv`, `…/items.csv`, `…/audit.csv`) — write headers, `Transfer-Encoding: chunked`, stream rows with `\r\n` line endings; no buffer-the-whole-result-in-memory.
+**Phase 0.5 — Web skeleton**
+- `apps/web/package.json` deps from CLAUDE.md §2: Next 16 + React 19, Tailwind v4 (CSS-based config, `@import "tailwindcss"` in `globals.css`), TanStack Query 5, Zustand 5, axios, RHF + zod resolver, Tiptap 3, dnd-kit, recharts 3, sonner 2, lucide-react, clsx + tailwind-merge, cva, next-themes, cmdk.
+- `app/layout.jsx` + `providers.jsx` (TanStack provider, ThemeProvider from next-themes, Toaster).
+- `lib/api.js` — axios with `baseURL`, `withCredentials`, single 401 → `/auth/refresh` → retry interceptor; redirect to `/login` on second failure.
+- `lib/socket.js` — `io(API_URL, { withCredentials: true })` lazy singleton; `useSocket(workspaceId)` hook does `workspace:join`/`workspace:leave`.
+- `stores/useWorkspaceStore.js` — currently-selected workspace id, persisted via Zustand persist middleware.
 
-**Phase 2.7 — Swagger (bonus)**
-- `swagger-jsdoc` + `swagger-ui-express` mounted at `/api/docs`. JSDoc each router file with the existing Zod schemas converted via `zod-to-json-schema`. ~30 min if structured carefully — pure bonus points.
+**Phases 1.1–1.5 (frontend)** — auth pages, workspace dashboard, goals page, action items kanban (dnd-kit), announcements with Tiptap editor + reactions + comments. TanStack Query keys: `[domain, workspaceId, ...filters]`. Forms use the shared Zod schemas via `@hookform/resolvers/zod`.
 
-**Then frontend (Phases 0.5 → 2.4 → 2.6 → 2.8 → 2.9 → 2.10).**
-- 0.5 web skeleton: Next 16 + Tailwind 4 entry CSS + providers (TanStack Query + theme + sonner) + axios wrapper with 401→refresh interceptor + socket singleton.
-- Auth pages → workspaces dashboard → per-workspace shell with sidebar/topbar/presence dots → goals page → action items kanban (dnd-kit) → announcements page (Tiptap editor + reactions + comments) → notifications bell.
-- 2.4 optimistic UI via `useOptimisticMutation` + websocket reconciliation. 2.6 dark mode + cmd-k. 2.8 polish. 2.9 Railway deploy + seed. 2.10 README + 5-min walkthrough.
+**Phase 2.4 — Optimistic UI** (one of the two "advanced features"). `lib/optimistic.js` ships `useOptimisticMutation({ queryKey, mutator, optimisticUpdate })` that runs `onMutate`/`onError` rollback / `onSettled` per CLAUDE.md §8. Realtime events from the websocket reconcile cache without an extra refetch.
+
+**Phase 2.6 — Dark mode + ⌘K** (small wins). `next-themes` for theme; `cmdk` for the command palette with global navigation actions and quick-create shortcuts.
+
+**Phase 2.8 polish · 2.9 Railway deploy + seed · 2.10 README + 5-min walkthrough video.**
 
 **Then frontend** — Phase 0.5 (web skeleton) bundled with login/register pages, and feature pages built top-down with TanStack Query against the live API. With the backend complete, frontend can consume real data immediately rather than mocks.
 
