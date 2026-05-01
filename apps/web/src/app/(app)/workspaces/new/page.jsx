@@ -28,7 +28,7 @@ export default function NewWorkspacePage() {
         description: description.trim() || undefined,
         accentColor,
       });
-      router.push(`/w/${res.data.id}`);
+      router.push(`/w/${res.data.workspace.id}`);
     } catch (err) {
       setError(err.response?.data?.error?.message || 'Failed to create workspace');
     } finally {

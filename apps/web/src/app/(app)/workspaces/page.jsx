@@ -11,24 +11,22 @@ export default function WorkspacesPage() {
 
   const { data: user } = useQuery({
     queryKey: ['me'],
-    queryFn: () => api.get('/auth/me').then((r) => r.data),
+    queryFn: () => api.get('/auth/me').then((r) => r.data.user),
   });
 
   const {
-    data: workspaces,
+    data: list = [],
     isLoading,
     error,
   } = useQuery({
     queryKey: ['workspaces'],
-    queryFn: () => api.get('/workspaces').then((r) => r.data),
+    queryFn: () => api.get('/workspaces').then((r) => r.data.workspaces),
   });
 
   async function handleLogout() {
     await api.post('/auth/logout');
     router.push('/login');
   }
-
-  const list = workspaces?.data ?? workspaces ?? [];
 
   return (
     <div className="mx-auto max-w-3xl px-4 py-10">
@@ -109,11 +107,8 @@ export default function WorkspacesPage() {
                     </p>
                   )}
                 </div>
-                <span className="text-xs text-muted-foreground">
-                  {ws._count?.members ?? ws.memberCount ?? 0} member
-                  {(ws._count?.members ?? ws.memberCount ?? 0) !== 1
-                    ? 's'
-                    : ''}
+                <span className="text-xs text-muted-foreground capitalize">
+                  {ws.myRole?.toLowerCase()}
                 </span>
               </Link>
             ),
