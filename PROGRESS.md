@@ -49,9 +49,9 @@ flowchart LR
     P15 --> P21 --> P22 --> P23 --> P24 --> P25
     P25 --> P26 --> P27 --> P28 --> P29 --> P210
 
-    class P01,P02,P03,P04 done
-    class P05 wip
-    class P06,P11,P12,P13,P14,P15,P21,P22,P23,P24,P25,P26,P27,P28,P29,P210 pending
+    class P01,P02,P03,P04,P06 done
+    class P11 wip
+    class P05,P12,P13,P14,P15,P21,P22,P23,P24,P25,P26,P27,P28,P29,P210 pending
 ```
 
 ---
@@ -139,10 +139,43 @@ The new `prisma-client` provider is TS-only (internally named `PrismaClientTs`) 
 
 ---
 
-## Up next
+## Phase 0.6 — Shared Zod schemas package ✅
 
-- Phase 0.5 — Web skeleton (Next 16 + Tailwind v4 + providers + axios refresh interceptor)
-- Phase 0.6 — Shared Zod schemas package
-- Phase 1.1 — Auth end-to-end
+**Done out of roadmap order** (before 0.5) so Phase 1.1 auth and the future React Hook Form resolvers both consume the same Zod from day one — single source of truth across api + web.
 
-See `ROADMAP.md` for the full execution plan and `requirements.md` §A for the locked decisions and cut list.
+**Files written under `packages/schemas/src/`:**
+- `enums.js` — Zod enums mirroring Prisma's `Role`, `GoalStatus`, `ItemStatus`, `Priority`, `AuditAction` + plain-array exports for kanban column iteration.
+- `auth.js` — `registerSchema`, `loginSchema`, `updateProfileSchema` (per REQUIREMENTS §B: ≥8 chars, ≥1 letter, ≥1 number; emails normalized via `.toLowerCase()` and `.trim()`).
+- `workspace.js` — workspace CRUD + member role + invitation create/accept (hex accent color regex, role enum from `enums.js`).
+- `goal.js` — goal CRUD, milestone CRUD, goal-update create, paginated list query.
+- `action-item.js` — action-item CRUD, list query with kanban filters.
+- `announcement.js` — announcement CRUD (Tiptap HTML — sanitize-html still runs server-side per CLAUDE.md §1.7), reaction toggle, comment create + cursor pagination.
+- `index.js` — barrel re-export so both apps `import { registerSchema, … } from '@team-hub/schemas'`.
+
+`packages/schemas/package.json` already declares `zod` as a peerDependency, so the consuming app's `zod` (api: ^4.4.1; web: TBD in Phase 0.5) is what gets used — no duplicate install.
+
+---
+
+## Session handoff (for the next Claude session)
+
+**Repo state at session end:** commits up to Phase 0.6 done. Local Postgres healthy via `docker compose up -d db`. `apps/api/.env` has working JWT secrets (gitignored). Migration `20260501105147_init` applied; all 14 tables present.
+
+**Memory loaded automatically into next session:**
+- `MEMORY.md` index points to 8 memory files: user role (frontend eng learning backend), assessment context (deadline 2026-05-04, demo creds, GitHub URL), version bumps (Tiptap 3 / Recharts 3 / Sonner 2), and 5 feedback memories (concise commits / no auto-push / surface silent config / user runs dev commands / maintain PROGRESS.md).
+
+**Next session starts here — Phase 1.1 (Auth end-to-end):**
+1. **Backend** — install `jsonwebtoken@^9.0.2`, `bcrypt@^5.1.1`, `express-rate-limit` (latest). Build:
+   - `src/lib/tokens.js` (`signAccess`, `signRefresh`, `verifyAccess`, `hashRefresh` with sha256)
+   - `src/lib/cookies.js` (set/clear `at` + `rt` with `httpOnly` / `Secure` / `SameSite=Lax`)
+   - `src/middleware/require-auth.js` (verify `at` cookie → attach `req.user`)
+   - `src/middleware/validate.js` (generic Zod body/query/params validator)
+   - `src/modules/auth/{router,controller,service}.js` for `POST /auth/{register,login,refresh,logout}`, `GET /auth/me`
+   - `src/modules/users/router.js` for `PATCH /users/me`, `POST /users/me/avatar` (avatar can be stub until Cloudinary keys are set)
+   - Rate limit `/auth/*` at 10/min/ip per CLAUDE.md §9
+2. **Verify** via `curl` chain: register → see set-cookies → `/auth/me` with cookie → refresh → logout.
+3. Commit: `feat(api): implement jwt auth with refresh rotation`.
+4. **Then** Phase 0.5 (web skeleton — `apps/web` with Next 16 + Tailwind 4 + providers + axios refresh interceptor) → Phase 1.1 web side (login + register pages consuming `@team-hub/schemas`).
+
+Cut list & time triggers (when behind): see `ROADMAP.md` "Cut list" and "Time triggers" sections.
+
+See `ROADMAP.md` for the full execution plan and `requirements.md` §A for the locked decisions.

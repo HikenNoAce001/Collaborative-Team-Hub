@@ -1,3 +1,9 @@
-// Shared Zod schemas — populated in Phase 0.6 / per feature.
-// See REQUIREMENTS.md §B–§I and CLAUDE.md §1.6 (single source of truth).
-export {};
+// @team-hub/schemas — single source of truth for Zod validation across api + web.
+// Add a field once here, both ends know.
+
+export * from './enums.js';
+export * from './auth.js';
+export * from './workspace.js';
+export * from './goal.js';
+export * from './action-item.js';
+export * from './announcement.js';
