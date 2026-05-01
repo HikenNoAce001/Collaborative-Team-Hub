@@ -61,7 +61,7 @@ export async function listComments(req, res) {
 }
 
 export async function createComment(req, res) {
-  const comment = await service.createComment(
+  const { comment, notifications } = await service.createComment(
     req.params.id,
     req.announcement.workspaceId,
     req.body,
@@ -73,4 +73,7 @@ export async function createComment(req, res) {
     announcementId: req.announcement.id,
     comment,
   });
+  for (const n of notifications) {
+    emitToUser(n.recipientId, 'notification:created', { notification: n });
+  }
 }

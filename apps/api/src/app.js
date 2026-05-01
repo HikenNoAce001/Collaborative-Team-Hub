@@ -26,6 +26,7 @@ import {
   announcementsRouter,
 } from './modules/announcements/router.js';
 import { workspaceAuditRouter } from './modules/audit/router.js';
+import { notificationsRouter } from './modules/notifications/router.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const pkg = JSON.parse(readFileSync(resolve(__dirname, '..', 'package.json'), 'utf8'));
@@ -74,6 +75,7 @@ export function createApp() {
   app.use('/milestones', milestonesRouter);
   app.use('/action-items', actionItemsRouter);
   app.use('/announcements', announcementsRouter);
+  app.use('/notifications', notificationsRouter);
 
   app.use(notFoundHandler);
   app.use(errorHandler);

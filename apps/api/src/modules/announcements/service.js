@@ -169,16 +169,38 @@ export async function listComments(announcementId, { before, pageSize }) {
 }
 
 export async function createComment(announcementId, workspaceId, body, authorId) {
+  // Mentions are filtered to actual workspace members and self-mentions stripped.
   let mentionUserIds = [];
   if (body.mentionUserIds.length > 0) {
     const valid = await prisma.workspaceMember.findMany({
       where: { workspaceId, userId: { in: body.mentionUserIds } },
       select: { userId: true },
     });
-    mentionUserIds = valid.map((m) => m.userId);
+    mentionUserIds = valid.map((m) => m.userId).filter((id) => id !== authorId);
   }
-  return prisma.comment.create({
-    data: { announcementId, authorId, body: body.body, mentionUserIds },
-    include: { author: { select: { id: true, name: true, avatarUrl: true } } },
+
+  return prisma.$transaction(async (tx) => {
+    const comment = await tx.comment.create({
+      data: { announcementId, authorId, body: body.body, mentionUserIds },
+      include: { author: { select: { id: true, name: true, avatarUrl: true } } },
+    });
+    const notifications = [];
+    for (const userId of mentionUserIds) {
+      const n = await tx.notification.create({
+        data: {
+          recipientId: userId,
+          kind: 'mention',
+          payload: {
+            workspaceId,
+            announcementId,
+            commentId: comment.id,
+            actor: { id: authorId, name: comment.author.name, avatarUrl: comment.author.avatarUrl },
+            preview: body.body.slice(0, 140),
+          },
+        },
+      });
+      notifications.push(n);
+    }
+    return { comment, notifications };
   });
 }
