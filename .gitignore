@@ -57,3 +57,4 @@ apps/api/src/generated/
 
 # Local-only dev log (per ROADMAP.md)
 daily-log.md
+tmp/
