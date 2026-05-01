@@ -1,5 +1,6 @@
 import { prisma } from '../../db.js';
 import { NotFound } from '../../lib/errors.js';
+import { audit } from '../audit/service.js';
 
 const itemSelect = {
   id: true,
@@ -63,12 +64,23 @@ export async function listActionItems(
   return { data, meta: { page, pageSize, total } };
 }
 
-export async function createActionItem(workspaceId, body) {
+export async function createActionItem(workspaceId, body, actorId) {
   await assertAssigneeIsMember(workspaceId, body.assigneeId);
   await assertGoalInWorkspace(workspaceId, body.goalId);
-  return prisma.actionItem.create({
-    data: { workspaceId, ...body },
-    select: itemSelect,
+  return prisma.$transaction(async (tx) => {
+    const item = await tx.actionItem.create({
+      data: { workspaceId, ...body },
+      select: itemSelect,
+    });
+    await audit(tx, {
+      workspaceId,
+      actorId,
+      action: 'CREATE',
+      entityType: 'ActionItem',
+      entityId: item.id,
+      after: { title: item.title, status: item.status, priority: item.priority, assigneeId: item.assigneeId, goalId: item.goalId },
+    });
+    return item;
   });
 }
 
@@ -81,20 +93,42 @@ export async function getActionItem(itemId) {
   return item;
 }
 
-export async function updateActionItem(itemId, workspaceId, body) {
+export async function updateActionItem(itemId, workspaceId, body, actorId) {
   await assertAssigneeIsMember(workspaceId, body.assigneeId);
   await assertGoalInWorkspace(workspaceId, body.goalId);
-  return prisma.actionItem.update({
-    where: { id: itemId },
-    data: body,
-    select: itemSelect,
+  const existing = await prisma.actionItem.findUnique({ where: { id: itemId } });
+  if (!existing) throw NotFound('Action item not found');
+  return prisma.$transaction(async (tx) => {
+    const updated = await tx.actionItem.update({
+      where: { id: itemId },
+      data: body,
+      select: itemSelect,
+    });
+    await audit(tx, {
+      workspaceId,
+      actorId,
+      action: 'UPDATE',
+      entityType: 'ActionItem',
+      entityId: itemId,
+      before: { title: existing.title, status: existing.status, priority: existing.priority, assigneeId: existing.assigneeId },
+      after: { title: updated.title, status: updated.status, priority: updated.priority, assigneeId: updated.assigneeId },
+    });
+    return updated;
   });
 }
 
-export async function deleteActionItem(itemId) {
-  try {
-    await prisma.actionItem.delete({ where: { id: itemId } });
-  } catch {
-    throw NotFound('Action item not found');
-  }
+export async function deleteActionItem(itemId, actorId, workspaceId) {
+  return prisma.$transaction(async (tx) => {
+    const existing = await tx.actionItem.findUnique({ where: { id: itemId } });
+    if (!existing) throw NotFound('Action item not found');
+    await tx.actionItem.delete({ where: { id: itemId } });
+    await audit(tx, {
+      workspaceId,
+      actorId,
+      action: 'DELETE',
+      entityType: 'ActionItem',
+      entityId: itemId,
+      before: { title: existing.title, status: existing.status },
+    });
+  });
 }

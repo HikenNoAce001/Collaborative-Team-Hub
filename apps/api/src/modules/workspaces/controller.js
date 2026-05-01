@@ -16,7 +16,7 @@ export async function get(req, res) {
 }
 
 export async function update(req, res) {
-  const workspace = await service.updateWorkspace(req.params.id, req.body);
+  const workspace = await service.updateWorkspace(req.params.id, req.body, req.user.id);
   res.json({ workspace });
 }
 
@@ -41,7 +41,7 @@ export async function updateMemberRole(req, res) {
 }
 
 export async function removeMember(req, res) {
-  await service.removeMember(req.params.id, req.params.userId);
+  await service.removeMember(req.params.id, req.params.userId, req.user.id);
   res.status(204).end();
 }
 

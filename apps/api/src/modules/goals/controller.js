@@ -26,7 +26,7 @@ export async function update(req, res) {
 
 export async function remove(req, res) {
   const { workspaceId, id } = req.goal;
-  await service.deleteGoal(req.params.id);
+  await service.deleteGoal(req.params.id, req.user.id);
   res.status(204).end();
   emitToWorkspace(workspaceId, 'goal:deleted', { workspaceId, id });
 }
@@ -47,7 +47,12 @@ export async function createUpdate(req, res) {
 }
 
 export async function createMilestone(req, res) {
-  const milestone = await service.createMilestone(req.params.id, req.body, req.user.id);
+  const milestone = await service.createMilestone(
+    req.params.id,
+    req.body,
+    req.user.id,
+    req.goal.workspaceId,
+  );
   res.status(201).json({ milestone });
   emitToWorkspace(req.goal.workspaceId, 'milestone:created', {
     workspaceId: req.goal.workspaceId,

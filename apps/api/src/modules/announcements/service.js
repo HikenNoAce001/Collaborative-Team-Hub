@@ -1,6 +1,7 @@
 import { prisma } from '../../db.js';
 import { NotFound } from '../../lib/errors.js';
 import { sanitizeRichText } from '../../lib/sanitize.js';
+import { audit } from '../audit/service.js';
 
 const announcementSelect = {
   id: true,
@@ -30,15 +31,26 @@ export async function listAnnouncements(workspaceId, { page, pageSize }) {
 }
 
 export async function createAnnouncement(workspaceId, body, authorId) {
-  return prisma.announcement.create({
-    data: {
+  return prisma.$transaction(async (tx) => {
+    const announcement = await tx.announcement.create({
+      data: {
+        workspaceId,
+        authorId,
+        title: body.title,
+        bodyHtml: sanitizeRichText(body.body),
+        pinned: body.pinned,
+      },
+      select: announcementSelect,
+    });
+    await audit(tx, {
       workspaceId,
-      authorId,
-      title: body.title,
-      bodyHtml: sanitizeRichText(body.body),
-      pinned: body.pinned,
-    },
-    select: announcementSelect,
+      actorId: authorId,
+      action: 'CREATE',
+      entityType: 'Announcement',
+      entityId: announcement.id,
+      after: { title: announcement.title, pinned: announcement.pinned },
+    });
+    return announcement;
   });
 }
 
@@ -56,29 +68,51 @@ export async function getAnnouncement(announcementId) {
   return announcement;
 }
 
-export async function updateAnnouncement(announcementId, body) {
+export async function updateAnnouncement(announcementId, body, actorId) {
   const data = { ...body };
   if (data.body !== undefined) {
     data.bodyHtml = sanitizeRichText(data.body);
     delete data.body;
   }
-  try {
-    return await prisma.announcement.update({
+  const existing = await prisma.announcement.findUnique({ where: { id: announcementId } });
+  if (!existing) throw NotFound('Announcement not found');
+
+  return prisma.$transaction(async (tx) => {
+    const updated = await tx.announcement.update({
       where: { id: announcementId },
       data,
       select: announcementSelect,
     });
-  } catch {
-    throw NotFound('Announcement not found');
-  }
+    // Pin toggle gets its own audit action; otherwise it's a generic UPDATE.
+    const pinChanged = data.pinned !== undefined && data.pinned !== existing.pinned;
+    const action = pinChanged ? (updated.pinned ? 'PIN' : 'UNPIN') : 'UPDATE';
+    await audit(tx, {
+      workspaceId: existing.workspaceId,
+      actorId,
+      action,
+      entityType: 'Announcement',
+      entityId: announcementId,
+      before: { title: existing.title, pinned: existing.pinned },
+      after: { title: updated.title, pinned: updated.pinned },
+    });
+    return updated;
+  });
 }
 
-export async function deleteAnnouncement(announcementId) {
-  try {
-    await prisma.announcement.delete({ where: { id: announcementId } });
-  } catch {
-    throw NotFound('Announcement not found');
-  }
+export async function deleteAnnouncement(announcementId, actorId) {
+  return prisma.$transaction(async (tx) => {
+    const existing = await tx.announcement.findUnique({ where: { id: announcementId } });
+    if (!existing) throw NotFound('Announcement not found');
+    await tx.announcement.delete({ where: { id: announcementId } });
+    await audit(tx, {
+      workspaceId: existing.workspaceId,
+      actorId,
+      action: 'DELETE',
+      entityType: 'Announcement',
+      entityId: announcementId,
+      before: { title: existing.title, pinned: existing.pinned },
+    });
+  });
 }
 
 export async function addReaction(announcementId, userId, emoji) {

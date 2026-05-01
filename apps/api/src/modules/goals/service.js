@@ -1,5 +1,6 @@
 import { prisma } from '../../db.js';
 import { NotFound } from '../../lib/errors.js';
+import { audit } from '../audit/service.js';
 
 const goalSelect = {
   id: true,
@@ -41,16 +42,27 @@ export async function createGoal(workspaceId, body, creatorId) {
   });
   if (!ownerMember) throw NotFound('Owner is not a member of this workspace');
 
-  return prisma.goal.create({
-    data: {
+  return prisma.$transaction(async (tx) => {
+    const goal = await tx.goal.create({
+      data: {
+        workspaceId,
+        ownerId,
+        title: body.title,
+        description: body.description,
+        dueDate: body.dueDate,
+        status: body.status,
+      },
+      select: goalSelect,
+    });
+    await audit(tx, {
       workspaceId,
-      ownerId,
-      title: body.title,
-      description: body.description,
-      dueDate: body.dueDate,
-      status: body.status,
-    },
-    select: goalSelect,
+      actorId: creatorId,
+      action: 'CREATE',
+      entityType: 'Goal',
+      entityId: goal.id,
+      after: { title: goal.title, status: goal.status, ownerId: goal.ownerId },
+    });
+    return goal;
   });
 }
 
@@ -94,16 +106,33 @@ export async function updateGoal(goalId, body, actorId) {
         },
       });
     }
+    await audit(tx, {
+      workspaceId: updated.workspaceId,
+      actorId,
+      action: 'UPDATE',
+      entityType: 'Goal',
+      entityId: goalId,
+      before: { title: existing.title, status: existing.status, ownerId: existing.ownerId },
+      after: { title: updated.title, status: updated.status, ownerId: updated.ownerId },
+    });
     return updated;
   });
 }
 
-export async function deleteGoal(goalId) {
-  try {
-    await prisma.goal.delete({ where: { id: goalId } });
-  } catch {
-    throw NotFound('Goal not found');
-  }
+export async function deleteGoal(goalId, actorId) {
+  return prisma.$transaction(async (tx) => {
+    const existing = await tx.goal.findUnique({ where: { id: goalId } });
+    if (!existing) throw NotFound('Goal not found');
+    await tx.goal.delete({ where: { id: goalId } });
+    await audit(tx, {
+      workspaceId: existing.workspaceId,
+      actorId,
+      action: 'DELETE',
+      entityType: 'Goal',
+      entityId: goalId,
+      before: { title: existing.title, status: existing.status },
+    });
+  });
 }
 
 export async function listGoalUpdates(goalId, { before, pageSize }) {
@@ -133,7 +162,7 @@ export async function createGoalUpdate(goalId, body, authorId) {
   });
 }
 
-export async function createMilestone(goalId, body, authorId) {
+export async function createMilestone(goalId, body, authorId, workspaceId) {
   return prisma.$transaction(async (tx) => {
     const milestone = await tx.milestone.create({
       data: { goalId, title: body.title, progress: body.progress },
@@ -149,6 +178,14 @@ export async function createMilestone(goalId, body, authorId) {
         },
       });
     }
+    await audit(tx, {
+      workspaceId,
+      actorId: authorId,
+      action: 'CREATE',
+      entityType: 'Milestone',
+      entityId: milestone.id,
+      after: { goalId, title: milestone.title, progress: milestone.progress },
+    });
     return milestone;
   });
 }

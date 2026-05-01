@@ -1,7 +1,8 @@
 import { prisma } from '../../db.js';
 import { NotFound } from '../../lib/errors.js';
+import { audit } from '../audit/service.js';
 
-export async function updateMilestone(milestoneId, body, authorId) {
+export async function updateMilestone(milestoneId, body, authorId, workspaceId) {
   const existing = await prisma.milestone.findUnique({ where: { id: milestoneId } });
   if (!existing) throw NotFound('Milestone not found');
 
@@ -24,14 +25,31 @@ export async function updateMilestone(milestoneId, body, authorId) {
         },
       });
     }
+    await audit(tx, {
+      workspaceId,
+      actorId: authorId,
+      action: 'UPDATE',
+      entityType: 'Milestone',
+      entityId: milestoneId,
+      before: { title: existing.title, progress: existing.progress },
+      after: { title: updated.title, progress: updated.progress },
+    });
     return updated;
   });
 }
 
-export async function deleteMilestone(milestoneId) {
-  try {
-    await prisma.milestone.delete({ where: { id: milestoneId } });
-  } catch {
-    throw NotFound('Milestone not found');
-  }
+export async function deleteMilestone(milestoneId, actorId, workspaceId) {
+  return prisma.$transaction(async (tx) => {
+    const existing = await tx.milestone.findUnique({ where: { id: milestoneId } });
+    if (!existing) throw NotFound('Milestone not found');
+    await tx.milestone.delete({ where: { id: milestoneId } });
+    await audit(tx, {
+      workspaceId,
+      actorId,
+      action: 'DELETE',
+      entityType: 'Milestone',
+      entityId: milestoneId,
+      before: { goalId: existing.goalId, title: existing.title, progress: existing.progress },
+    });
+  });
 }

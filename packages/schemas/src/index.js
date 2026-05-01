@@ -7,3 +7,4 @@ export * from './workspace.js';
 export * from './goal.js';
 export * from './action-item.js';
 export * from './announcement.js';
+export * from './audit.js';

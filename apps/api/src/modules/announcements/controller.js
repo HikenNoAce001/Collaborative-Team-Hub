@@ -19,7 +19,7 @@ export async function get(req, res) {
 }
 
 export async function update(req, res) {
-  const announcement = await service.updateAnnouncement(req.params.id, req.body);
+  const announcement = await service.updateAnnouncement(req.params.id, req.body, req.user.id);
   res.json({ announcement });
   emitToWorkspace(announcement.workspaceId, 'announcement:updated', {
     workspaceId: announcement.workspaceId,
@@ -29,7 +29,7 @@ export async function update(req, res) {
 
 export async function remove(req, res) {
   const { workspaceId, id } = req.announcement;
-  await service.deleteAnnouncement(req.params.id);
+  await service.deleteAnnouncement(req.params.id, req.user.id);
   res.status(204).end();
   emitToWorkspace(workspaceId, 'announcement:deleted', { workspaceId, id });
 }

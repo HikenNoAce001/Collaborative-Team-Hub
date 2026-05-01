@@ -1,6 +1,7 @@
 import { prisma } from '../../db.js';
 import { Conflict, Forbidden, Gone, NotFound } from '../../lib/errors.js';
 import { generateInviteToken, hashInviteToken } from '../../lib/invitation-token.js';
+import { audit } from '../audit/service.js';
 
 const memberSelect = {
   id: true,
@@ -28,6 +29,14 @@ export async function createWorkspace({ name, description, accentColor }, creato
         members: { create: { userId: creatorId, role: 'ADMIN' } },
       },
     });
+    await audit(tx, {
+      workspaceId: ws.id,
+      actorId: creatorId,
+      action: 'CREATE',
+      entityType: 'Workspace',
+      entityId: ws.id,
+      after: { name: ws.name },
+    });
     return { ...ws, myRole: 'ADMIN' };
   });
 }
@@ -46,15 +55,28 @@ export async function getWorkspace(workspaceId, userId) {
   return { ...ws, myRole: m?.role ?? null };
 }
 
-export async function updateWorkspace(workspaceId, data) {
-  try {
-    return await prisma.workspace.update({ where: { id: workspaceId }, data });
-  } catch {
-    throw NotFound('Workspace not found');
-  }
+export async function updateWorkspace(workspaceId, data, actorId) {
+  const existing = await prisma.workspace.findUnique({ where: { id: workspaceId } });
+  if (!existing) throw NotFound('Workspace not found');
+  return prisma.$transaction(async (tx) => {
+    const updated = await tx.workspace.update({ where: { id: workspaceId }, data });
+    await audit(tx, {
+      workspaceId,
+      actorId,
+      action: 'UPDATE',
+      entityType: 'Workspace',
+      entityId: workspaceId,
+      before: { name: existing.name, description: existing.description, accentColor: existing.accentColor },
+      after: { name: updated.name, description: updated.description, accentColor: updated.accentColor },
+    });
+    return updated;
+  });
 }
 
 export async function deleteWorkspace(workspaceId) {
+  // No audit row: AuditLog.workspaceId cascades on Workspace delete, so the
+  // breadcrumb would be wiped along with the workspace. Pino-http already
+  // captures the DELETE request with actor context.
   try {
     await prisma.workspace.delete({ where: { id: workspaceId } });
   } catch {
@@ -85,15 +107,25 @@ export async function updateMemberRole(workspaceId, userId, role, actorId) {
       if (admins <= 1) throw Conflict('Cannot demote the last admin');
       if (target.userId === actorId) throw Conflict('Cannot demote yourself if last admin');
     }
-    return tx.workspaceMember.update({
+    const updated = await tx.workspaceMember.update({
       where: { workspaceId_userId: { workspaceId, userId } },
       data: { role },
       select: memberSelect,
     });
+    await audit(tx, {
+      workspaceId,
+      actorId,
+      action: 'ROLE_CHANGE',
+      entityType: 'Member',
+      entityId: target.id,
+      before: { userId, role: target.role },
+      after: { userId, role },
+    });
+    return updated;
   });
 }
 
-export async function removeMember(workspaceId, userId) {
+export async function removeMember(workspaceId, userId, actorId) {
   return prisma.$transaction(async (tx) => {
     const target = await tx.workspaceMember.findUnique({
       where: { workspaceId_userId: { workspaceId, userId } },
@@ -105,6 +137,14 @@ export async function removeMember(workspaceId, userId) {
     }
     await tx.workspaceMember.delete({
       where: { workspaceId_userId: { workspaceId, userId } },
+    });
+    await audit(tx, {
+      workspaceId,
+      actorId,
+      action: 'REMOVE_MEMBER',
+      entityType: 'Member',
+      entityId: target.id,
+      before: { userId, role: target.role },
     });
   });
 }
@@ -119,18 +159,22 @@ export async function createInvitation(workspaceId, { email, role }, invitedById
     if (m) throw Conflict('User is already a workspace member');
   }
   const { raw, hash, expiresAt } = generateInviteToken();
-  const invitation = await prisma.invitation.create({
-    data: {
+  const invitation = await prisma.$transaction(async (tx) => {
+    const created = await tx.invitation.create({
+      data: { workspaceId, email, role, tokenHash: hash, expiresAt, invitedById },
+      select: { id: true, email: true, role: true, expiresAt: true, createdAt: true },
+    });
+    await audit(tx, {
       workspaceId,
-      email,
-      role,
-      tokenHash: hash,
-      expiresAt,
-      invitedById,
-    },
-    select: { id: true, email: true, role: true, expiresAt: true, createdAt: true },
+      actorId: invitedById,
+      action: 'INVITE',
+      entityType: 'Invitation',
+      entityId: created.id,
+      after: { email, role },
+    });
+    return created;
   });
-  // Return the raw token ONCE so the FE can copy/email it. Never persisted in plaintext.
+  // Raw token returned ONCE so the admin can copy it. Never persisted in plaintext.
   return { ...invitation, token: raw };
 }
 
@@ -150,7 +194,17 @@ export async function revokeInvitation(invitationId, actorUserId) {
     where: { workspaceId_userId: { workspaceId: inv.workspaceId, userId: actorUserId } },
   });
   if (!m || m.role !== 'ADMIN') throw Forbidden('Admin only');
-  await prisma.invitation.delete({ where: { id: invitationId } });
+  await prisma.$transaction(async (tx) => {
+    await tx.invitation.delete({ where: { id: invitationId } });
+    await audit(tx, {
+      workspaceId: inv.workspaceId,
+      actorId: actorUserId,
+      action: 'REVOKE_INVITE',
+      entityType: 'Invitation',
+      entityId: invitationId,
+      before: { email: inv.email, role: inv.role },
+    });
+  });
 }
 
 export async function acceptInvitation(token, userId) {
@@ -174,6 +228,14 @@ export async function acceptInvitation(token, userId) {
       select: memberSelect,
     });
     await tx.invitation.delete({ where: { id: inv.id } });
+    await audit(tx, {
+      workspaceId: inv.workspaceId,
+      actorId: userId,
+      action: 'ACCEPT_INVITE',
+      entityType: 'Member',
+      entityId: member.id,
+      after: { userId, role: inv.role, invitationId: inv.id },
+    });
     const workspace = await tx.workspace.findUnique({ where: { id: inv.workspaceId } });
     return { workspace: { ...workspace, myRole: member.role }, member };
   });

@@ -25,6 +25,7 @@ import {
   workspaceAnnouncementsRouter,
   announcementsRouter,
 } from './modules/announcements/router.js';
+import { workspaceAuditRouter } from './modules/audit/router.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const pkg = JSON.parse(readFileSync(resolve(__dirname, '..', 'package.json'), 'utf8'));
@@ -66,6 +67,7 @@ export function createApp() {
   app.use('/workspaces/:id/goals', workspaceGoalsRouter);
   app.use('/workspaces/:id/action-items', workspaceActionItemsRouter);
   app.use('/workspaces/:id/announcements', workspaceAnnouncementsRouter);
+  app.use('/workspaces/:id/audit-logs', workspaceAuditRouter);
   app.use('/workspaces', workspacesRouter);
   app.use('/invitations', invitationsRouter);
   app.use('/goals', goalsRouter);
