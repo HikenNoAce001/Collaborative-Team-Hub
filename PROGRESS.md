@@ -49,9 +49,9 @@ flowchart LR
     P15 --> P21 --> P22 --> P23 --> P24 --> P25
     P25 --> P26 --> P27 --> P28 --> P29 --> P210
 
-    class P01,P02,P03 done
-    class P04 wip
-    class P05,P06,P11,P12,P13,P14,P15,P21,P22,P23,P24,P25,P26,P27,P28,P29,P210 pending
+    class P01,P02,P03,P04 done
+    class P05 wip
+    class P06,P11,P12,P13,P14,P15,P21,P22,P23,P24,P25,P26,P27,P28,P29,P210 pending
 ```
 
 ---
@@ -113,23 +113,29 @@ All Helmet headers present (CSP, HSTS, X-Frame-Options, …); CORS scoped to `ht
 
 ---
 
-## Phase 0.4 — Prisma schema + initial migration ⏳
+## Phase 0.4 — Prisma schema + initial migration ✅
 
-**Plan:**
-1. **Install:** `@prisma/client@^7.8.0`, `@prisma/adapter-pg@^7.8.0`, `pg`; dev `prisma@^7.8.0`.
-2. **Schema (`apps/api/prisma/schema.prisma`):** copy of `ARCHITECTURE.md §4`. Generator uses Prisma 7's new `prisma-client` provider (ESM, Rust-free), output to `../src/generated/prisma/`. IDs use `cuid()` (v1, matches doc). 14 models: User, RefreshToken, Workspace, WorkspaceMember, Invitation, Goal, Milestone, GoalUpdate, ActionItem, Announcement, Reaction, Comment, Notification, AuditLog. Compound indexes for analytics + filter predicates already specced.
-3. **Singleton (`apps/api/src/db.js`):** `new PrismaClient({ adapter: new PrismaPg({ connectionString }) })` with hot-reload guard for `node --watch`. Exports `prisma` + `disconnect()`.
-4. **Seed shell (`apps/api/prisma/seed.js`):** logs "no-op" until Phase 1.x fills it in.
-5. **User runs:** `pnpm --filter @team-hub/api db:migrate --name init` — creates `prisma/migrations/<ts>_init/migration.sql`, applies it, runs `prisma generate`.
-6. **Commit:** `feat(api): add prisma schema and initial migration`.
+**Migration:** `20260501105147_init` applied; 15 tables created (14 models + `_prisma_migrations`).
 
-**Expected verification (user runs):**
-```bash
-docker exec -it team-hub-db psql -U team_hub -d team_hub -c "\dt"
-# Should list: User, RefreshToken, Workspace, WorkspaceMember, Invitation,
-# Goal, Milestone, GoalUpdate, ActionItem, Announcement, Reaction, Comment,
-# Notification, AuditLog, _prisma_migrations
+**Files written:**
+- `apps/api/prisma/schema.prisma` — full schema per ARCHITECTURE.md §4 (5 enums + 14 models with compound indexes).
+- `apps/api/src/db.js` — `PrismaClient` singleton with `@prisma/adapter-pg` + hot-reload guard for `node --watch`.
+- `apps/api/prisma/seed.js` — no-op shell until Phase 1.x.
+
+**Sub-steps done:**
+1. Hit Node-version blocker on `prisma` dev install (Prisma 7 needs Node ≥ 22.12, local was 22.2). Resolved via `brew upgrade node@22` → 22.22.2.
+2. Installed `@prisma/client@^7.8.0`, `@prisma/adapter-pg@^7.8.0`, `pg@^8.13.1` as runtime; `prisma@^7.8.0` as dev.
+3. Wrote schema + db.js + seed.js.
+4. Hit Prisma 7 schema break: `url` is no longer allowed in `datasource db { … }`. Moved it to a new `apps/api/prisma.config.js` (using `defineConfig` from `prisma/config`) and installed `dotenv` so that file can read `DATABASE_URL` from `apps/api/.env` at config-load time. Schema datasource block is now provider-only.
+
+**Provider deviation from CLAUDE.md** (logged in CLAUDE.md + ARCHITECTURE.md):
+CLAUDE.md initially specced the new `prisma-client` provider. After inspecting the installed CLI build (`prisma@7.8.0/build/index.js`), the provider registry is:
 ```
+{ PrismaClientJs: "prisma-client-js",  PrismaClientTs: "prisma-client" }
+```
+The new `prisma-client` provider is TS-only (internally named `PrismaClientTs`) and would require a TS build step or `--experimental-strip-types` to consume from our pure-JS ESM backend. We use the **`prisma-client-js`** provider instead — still fully supported in Prisma 7, emits JS, works with `@prisma/adapter-pg` for the Rust-free driver path. CLAUDE.md and ARCHITECTURE.md updated to match.
+
+**Verified by user:** `pnpm --filter @team-hub/api db:migrate --name init` ran clean; `\dt` returned all 15 expected tables (`ActionItem`, `Announcement`, `AuditLog`, `Comment`, `Goal`, `GoalUpdate`, `Invitation`, `Milestone`, `Notification`, `Reaction`, `RefreshToken`, `User`, `Workspace`, `WorkspaceMember`, `_prisma_migrations`). `prisma generate` emitted the JS client to `apps/api/src/generated/prisma/`. Seed no-op fired.
 
 ---
 

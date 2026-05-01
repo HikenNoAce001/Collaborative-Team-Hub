@@ -54,7 +54,7 @@ persistent and not cached.
 | JavaScript (no TS) on FE        | Mandatory. We use JSDoc + jsconfig for IntelliSense.           |
 | ESM on backend                  | Forced by Prisma 7. Modern Node fully supports it.             |
 | Express 5                       | Mandatory; we benefit from native async error handling.        |
-| Prisma 7 + PostgreSQL           | Mandatory; we use the new `prisma-client` provider with `@prisma/adapter-pg`. |
+| Prisma 7 + PostgreSQL           | Mandatory; we use the `prisma-client-js` provider (JS output) with `@prisma/adapter-pg` for the Rust-free driver path. The newer `prisma-client` provider is TS-only and our backend is JS. |
 | Socket.io 4                     | Mandatory; rooms model maps cleanly to workspaces.             |
 | TanStack Query                  | Server-state cache → enables clean optimistic updates.         |
 | Zustand                         | Mandatory; we use it strictly for UI state.                    |
@@ -74,15 +74,20 @@ persistent and not cached.
 // prisma/schema.prisma
 
 generator client {
-  provider     = "prisma-client"
-  output       = "../src/generated/prisma"
-  engineType   = "client"
-  previewFeatures = []
+  provider = "prisma-client-js"
+  output   = "../src/generated/prisma"
+  // Note: the newer `prisma-client` provider in Prisma 7 emits .ts files only
+  // (the CLI internally names it `PrismaClientTs`). Our backend is pure JS ESM,
+  // so we use the still-supported `prisma-client-js` provider which emits .js.
+  // Both work with `@prisma/adapter-pg` for the Rust-free driver path.
 }
 
 datasource db {
   provider = "postgresql"
-  url      = env("DATABASE_URL")
+  // Prisma 7 removed `url` from datasource blocks — it now lives in
+  // `apps/api/prisma.config.js` (datasource.url) for the migrate CLI.
+  // The runtime PrismaClient gets the connection via the @prisma/adapter-pg
+  // adapter we instantiate in src/db.js.
 }
 
 enum Role        { ADMIN MEMBER }

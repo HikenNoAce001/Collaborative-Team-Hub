@@ -52,7 +52,7 @@ These are the versions to install. Don't drift.
 | ----------------------- | ------- | ------------------------------------------------------------------- |
 | node                    | 22.x    | Active LTS                                                          |
 | express                 | ^5.2.0  | Native async errors; no `next(err)` glue                            |
-| @prisma/client + prisma | ^7.8.0  | **ESM only**. Use `prisma-client` provider, not `prisma-client-js`. |
+| @prisma/client + prisma | ^7.8.0  | **ESM only**. Use `prisma-client-js` provider (emits JS). The newer `prisma-client` provider is TypeScript-only and our backend is pure JS. |
 | @prisma/adapter-pg      | ^7.8.0  | Required by Prisma 7's Rust-free client                             |
 | socket.io               | ^4.8.3  | Server                                                              |
 | jsonwebtoken            | ^9.0.2  |                                                                     |
