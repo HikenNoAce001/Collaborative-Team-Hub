@@ -49,8 +49,8 @@ flowchart LR
     P15 --> P21 --> P22 --> P23 --> P24 --> P25
     P25 --> P26 --> P27 --> P28 --> P29 --> P210
 
-    class P01,P02,P03,P04,P06,P11,P12,P13,P14,P15 done
-    class P05,P21,P22,P23,P24,P25,P26,P27,P28,P29,P210 pending
+    class P01,P02,P03,P04,P06,P11,P12,P13,P14,P15,P21,P22,P25 done
+    class P05,P23,P24,P26,P27,P28,P29,P210 pending
 ```
 
 ---
@@ -274,6 +274,52 @@ The new `prisma-client` provider is TS-only (internally named `PrismaClientTs`) 
 
 ---
 
+## Phase 2.1 — Realtime wiring (Socket.io) ✅
+
+**Commit:** `a8b8870` — `feat(api): wire socket.io with cookie auth, room presence, and per-mutation broadcasts`
+
+**Files written:**
+- `apps/api/src/realtime/io.js` — `attachIo(httpServer)` mounts Socket.io with the existing http server. Auth middleware reads the `at` cookie from the upgrade request, calls `verifyAccess`, and rejects with `UNAUTHORIZED` otherwise — no anonymous sockets. Each socket auto-joins `user:${userId}`. `workspace:join` re-verifies membership against Postgres before adding the socket to `workspace:${workspaceId}`. Presence is *derived from socket.io room membership* — no parallel state to drift; `listOnline()` walks `io.sockets.adapter.rooms` and dedups by `socket.userId`. `disconnecting` schedules a `presence:update` on the next tick so the room reflects the leave before the broadcast.
+- `apps/api/src/realtime/emit.js` — thin `emitToWorkspace(wsId, event, payload)` / `emitToUser(userId, event, payload)`; no-op when `attachIo` hasn't run (lets services be imported in test/CLI contexts without a live io).
+- `apps/api/src/server.js` — calls `attachIo(httpServer)` between server creation and listen.
+
+**Per-mutation broadcasts** (12 events) wired in domain controllers, *after* the response is sent so a slow socket can't slow the HTTP response:
+- `goal:created` · `goal:updated` · `goal:deleted` · `goal-update:created` · `milestone:created` · `milestone:updated` · `milestone:deleted`
+- `action-item:created` · `action-item:updated` · `action-item:deleted`
+- `announcement:created` · `announcement:updated` · `announcement:deleted` · `reaction:added` · `reaction:removed` · `comment:created`
+- `presence:update` (server-emitted from io.js itself)
+
+---
+
+## Phase 2.5 — Audit log ✅
+
+**Commit:** `e0a54e9` — `feat(api): add transactional audit log with admin-only feed endpoint`
+
+**Files written:**
+- `apps/api/src/modules/audit/service.js` — `audit(db, entry)` accepts either the bare `prisma` client or a `tx` from `prisma.$transaction`, so callers control atomicity. `listAuditLogs(workspaceId, query)` returns cursor-paginated rows newest-first with the actor populated.
+- `apps/api/src/modules/audit/router.js` — `GET /workspaces/:id/audit-logs` (admin-only) with filters: `action` · `entityType` · `actorId` · `before` · `pageSize`.
+- `packages/schemas/src/audit.js` — `EntityType` enum (Workspace, Member, Invitation, Goal, Milestone, ActionItem, Announcement) and `listAuditLogsQuery`.
+
+**Atomicity:** every mutating service was refactored to wrap its write + audit row in a single `prisma.$transaction`. A failed audit insert rolls back the data change — no orphaned mutations, no orphaned audit entries. Pin/unpin announcements get distinct `PIN`/`UNPIN` actions; generic content edits get `UPDATE`. Workspace deletion is the one intentional exception: `AuditLog.workspaceId` cascades on workspace delete, so an audit row would be reaped along with it — pino-http already captures the request with actor context.
+
+**Actions covered:** `CREATE`/`UPDATE`/`DELETE` on Workspace · Goal · Milestone · ActionItem · Announcement · `INVITE`/`ACCEPT_INVITE`/`REVOKE_INVITE` on Invitation · `ROLE_CHANGE`/`REMOVE_MEMBER` on Member · `PIN`/`UNPIN` on Announcement.
+
+---
+
+## Phase 2.2 — Mention notifications ✅
+
+**Commit:** `c38d0c5` — `feat(api): add notifications with mention dispatch and unread counts`
+
+**Files written:**
+- `apps/api/src/modules/notifications/{service,controller,router}.js` — `GET /notifications` (cursor-paginated; `?unreadOnly=true` filter; response `meta` carries `unreadCount` so the FE bell badge needs one fetch). `POST /notifications/:id/read` (404 if not the recipient — no leaky enumeration). `POST /notifications/read-all` returns `{updated}`.
+- `packages/schemas/src/notification.js` — `NotificationKind` (`mention` · `invitation` · `goal_assigned` · `item_assigned`) and `listNotificationsQuery`.
+
+**Mention pipeline:** `announcements/service.createComment` was refactored to run the comment insert + per-mention `Notification` row inside one `prisma.$transaction`. Mentions are filtered to actual workspace members **and** self-mentions are stripped (sending yourself a notification is noise). The controller fires `notification:created` to each `user:${recipientId}` room after the HTTP response — recipients see the bell update without polling.
+
+**Notification payload shape** for `mention`: `{ workspaceId, announcementId, commentId, actor: { id, name, avatarUrl }, preview: <first 140 chars of body> }` — enough for the FE to render a clickable toast without a follow-up fetch.
+
+---
+
 ## Combined verification — Phases 1.3 + 1.4 + 1.5
 
 One curl chain in `tmp/verify-1.3-1.5.sh` exercises every endpoint above: register two users (A=admin, B=member), create workspace, invite + accept, create goal, change status (auto status_change update), post manual update, create milestone @50%, bump to 100% (two milestone_progress updates), get goal (verify 4 updates / 1 milestone), cursor-paginate updates, create action item assigned to B with goalId, filter list, B moves it to `IN_PROGRESS`, A creates announcement with `<script>` + `javascript:` href (verify both stripped, `<strong>` kept), B (non-admin) tries to create announcement → 403, B reacts 👍, double-react → idempotent, comment with mention of A, list comments, list announcements (pinned-first with `_count`), remove reaction, double-DELETE → 204, cleanup. **18/18 assertions pass.**
@@ -291,23 +337,21 @@ One curl chain in `tmp/verify-1.3-1.5.sh` exercises every endpoint above: regist
 **Memory loaded automatically into next session:**
 - `MEMORY.md` index points to 8 memory files: user role (frontend eng learning backend), assessment context (deadline 2026-05-04, demo creds, GitHub URL), version bumps (Tiptap 3 / Recharts 3 / Sonner 2), and 5 feedback memories (concise commits / no auto-push / surface silent config / user runs dev commands / maintain PROGRESS.md).
 
-**Repo state at session end:** Phases 1.3 + 1.4 + 1.5 done. All workspace-scoped backend domains (goals, milestones, action items, announcements, reactions, comments) now ship CRUD + auto-activity + sanitize-html. Combined curl chain verified end-to-end. Next session resumes with the realtime layer.
+**Repo state at session end:** Phases 2.1 + 2.2 + 2.5 done. Realtime emits on every domain mutation; mentions persist Notification rows + push `notification:created` to the recipient's user room; every mutating service writes an atomic AuditLog row. Combined verifier in `tmp/verify-2.1-2.2-2.5.sh` (uses `socket.io-client` from workspace root + `tmp/ws-listen.mjs`). Backend feature surface ~85% — only analytics + Swagger remain before frontend.
 
-**Next session priority: realtime + advanced features.**
+**Next session priority: finish backend tail, then start frontend.**
 
-**Phase 2.1 — Realtime wiring**
-- `realtime/io.js` — Socket.io server bound to the existing `http.createServer`. Auth handshake middleware reads the `at` cookie from the upgrade request, verifies via `verifyAccess`, attaches `socket.userId` (reject otherwise per CLAUDE.md §7).
-- Rooms: `workspace:${id}` (joined on `workspace:join` after membership re-check) and `user:${id}` (auto-joined on connect for personal notifications).
-- Presence: keep an in-memory `Map<workspaceId, Set<userId>>` indexed by socket; emit `presence:update` on connect/disconnect.
-- Service-layer emit hooks: every mutating service action (goal/milestone/action-item/announcement/reaction/comment) returns its result and lets the controller / a small `emit(io, event, payload)` helper push to the room.
+**Phase 2.3 — Analytics + CSV**
+- `modules/analytics/{service,controller,router}.js` — workspace-scoped JSON aggregates for the dashboard: goals by status, action-items by status (kanban totals), action-items overdue by assignee, items completed per week (last 12), top contributors. Existing indexes `workspaceId+status` / `workspaceId+dueDate` cover all of these — no new migrations.
+- CSV stream endpoint per resource (`GET /workspaces/:id/export/goals.csv`, `…/items.csv`, `…/audit.csv`) — write headers, `Transfer-Encoding: chunked`, stream rows with `\r\n` line endings; no buffer-the-whole-result-in-memory.
 
-**Phase 2.2 — Mentions + notifications**
-- On `comment.create` with `mentionUserIds[]` → write a `Notification` row per mentioned user (kind=`mention`, payload contains announcementId + commentId + actor) and emit `notification:created` to each `user:${id}` room.
-- `GET /notifications` (cursor) · `POST /notifications/:id/read` · `POST /notifications/read-all`.
+**Phase 2.7 — Swagger (bonus)**
+- `swagger-jsdoc` + `swagger-ui-express` mounted at `/api/docs`. JSDoc each router file with the existing Zod schemas converted via `zod-to-json-schema`. ~30 min if structured carefully — pure bonus points.
 
-**Phase 2.3 — Analytics + CSV** · **Phase 2.5 — Audit log**
-- Analytics: aggregate queries against the existing indexes (`workspaceId+status`, `workspaceId+dueDate`) → JSON for charts + a CSV streaming endpoint.
-- Audit: a tiny `audit/service.js` wrapping `prisma.auditLog.create`; called from each domain service inside the existing `$transaction` for create/update/delete/role-change/invite/etc.
+**Then frontend (Phases 0.5 → 2.4 → 2.6 → 2.8 → 2.9 → 2.10).**
+- 0.5 web skeleton: Next 16 + Tailwind 4 entry CSS + providers (TanStack Query + theme + sonner) + axios wrapper with 401→refresh interceptor + socket singleton.
+- Auth pages → workspaces dashboard → per-workspace shell with sidebar/topbar/presence dots → goals page → action items kanban (dnd-kit) → announcements page (Tiptap editor + reactions + comments) → notifications bell.
+- 2.4 optimistic UI via `useOptimisticMutation` + websocket reconciliation. 2.6 dark mode + cmd-k. 2.8 polish. 2.9 Railway deploy + seed. 2.10 README + 5-min walkthrough.
 
 **Then frontend** — Phase 0.5 (web skeleton) bundled with login/register pages, and feature pages built top-down with TanStack Query against the live API. With the backend complete, frontend can consume real data immediately rather than mocks.
 
