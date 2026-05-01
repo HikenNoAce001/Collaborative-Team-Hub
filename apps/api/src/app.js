@@ -15,6 +15,16 @@ import { authRouter } from './modules/auth/router.js';
 import { usersRouter } from './modules/users/router.js';
 import { workspacesRouter } from './modules/workspaces/router.js';
 import { invitationsRouter } from './modules/invitations/router.js';
+import { workspaceGoalsRouter, goalsRouter } from './modules/goals/router.js';
+import { milestonesRouter } from './modules/milestones/router.js';
+import {
+  workspaceActionItemsRouter,
+  actionItemsRouter,
+} from './modules/action-items/router.js';
+import {
+  workspaceAnnouncementsRouter,
+  announcementsRouter,
+} from './modules/announcements/router.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const pkg = JSON.parse(readFileSync(resolve(__dirname, '..', 'package.json'), 'utf8'));
@@ -53,8 +63,15 @@ export function createApp() {
 
   app.use('/auth', authRouter);
   app.use('/users', usersRouter);
+  app.use('/workspaces/:id/goals', workspaceGoalsRouter);
+  app.use('/workspaces/:id/action-items', workspaceActionItemsRouter);
+  app.use('/workspaces/:id/announcements', workspaceAnnouncementsRouter);
   app.use('/workspaces', workspacesRouter);
   app.use('/invitations', invitationsRouter);
+  app.use('/goals', goalsRouter);
+  app.use('/milestones', milestonesRouter);
+  app.use('/action-items', actionItemsRouter);
+  app.use('/announcements', announcementsRouter);
 
   app.use(notFoundHandler);
   app.use(errorHandler);
