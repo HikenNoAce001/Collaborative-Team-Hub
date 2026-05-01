@@ -1,0 +1,29 @@
+{
+  "name": "@team-hub/api",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Team Hub backend — Express 5 + Prisma 7 + Socket.io.",
+  "main": "src/server.js",
+  "scripts": {
+    "dev": "node --watch --env-file=.env src/server.js",
+    "build": "echo 'api build is a no-op (interpreted node, prisma generate runs separately)' && exit 0",
+    "start": "node src/server.js",
+    "lint": "eslint .",
+    "test": "node --test --env-file=.env",
+    "db:migrate": "prisma migrate dev",
+    "db:migrate:deploy": "prisma migrate deploy",
+    "db:seed": "node --env-file=.env prisma/seed.js",
+    "db:generate": "prisma generate",
+    "db:studio": "prisma studio"
+  },
+  "prisma": {
+    "seed": "node --env-file=.env prisma/seed.js"
+  },
+  "dependencies": {
+    "@team-hub/schemas": "workspace:*"
+  },
+  "devDependencies": {
+    "@team-hub/eslint-config": "workspace:*"
+  }
+}

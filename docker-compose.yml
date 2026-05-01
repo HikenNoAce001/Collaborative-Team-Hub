@@ -1,0 +1,40 @@
+# Local development infrastructure for Team Hub.
+# Production uses Railway's Postgres plugin — DATABASE_URL is injected.
+# Per ARCHITECTURE.md §9.
+
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: team-hub-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: team_hub
+      POSTGRES_PASSWORD: team_hub_dev
+      POSTGRES_DB: team_hub
+    ports:
+      - '5432:5432'
+    volumes:
+      - team-hub-db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U team_hub -d team_hub']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # Optional: maildev catches outbound emails for the bonus invitation flow.
+  # Start with: docker compose --profile mail up -d
+  maildev:
+    image: maildev/maildev:latest
+    container_name: team-hub-maildev
+    restart: unless-stopped
+    profiles: ['mail']
+    ports:
+      - '1080:1080' # Web UI
+      - '1025:1025' # SMTP
+    environment:
+      MAILDEV_INCOMING_USER: ''
+      MAILDEV_INCOMING_PASS: ''
+
+volumes:
+  team-hub-db-data:
+    name: team-hub-db-data

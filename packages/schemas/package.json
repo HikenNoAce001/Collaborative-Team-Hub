@@ -1,0 +1,19 @@
+{
+  "name": "@team-hub/schemas",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Shared Zod schemas + enums consumed by api and web.",
+  "main": "./src/index.js",
+  "exports": {
+    ".": "./src/index.js",
+    "./enums": "./src/enums.js"
+  },
+  "scripts": {
+    "lint": "eslint .",
+    "build": "echo 'schemas is source-only (no transpile)' && exit 0"
+  },
+  "peerDependencies": {
+    "zod": "^4.0.0"
+  }
+}

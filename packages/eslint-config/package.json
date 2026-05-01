@@ -1,0 +1,16 @@
+{
+  "name": "@team-hub/eslint-config",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Shared ESLint flat configs for Team Hub.",
+  "main": "./base.js",
+  "exports": {
+    "./base": "./base.js",
+    "./node": "./node.js",
+    "./next": "./next.js"
+  },
+  "peerDependencies": {
+    "eslint": "^9.0.0"
+  }
+}

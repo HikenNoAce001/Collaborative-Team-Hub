@@ -1,0 +1,59 @@
+# Dependencies
+node_modules/
+.pnpm-store/
+.pnp.*
+.yarn/*
+
+# Build outputs
+.next/
+.turbo/
+dist/
+build/
+out/
+*.tsbuildinfo
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# Environment
+.env
+.env.local
+.env.*.local
+!.env.example
+
+# Test / coverage
+coverage/
+.nyc_output/
+.jest-cache/
+
+# OS
+.DS_Store
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# Editor
+.idea/
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json.example
+*.swp
+*.swo
+
+# Prisma generated client (per ARCHITECTURE.md §4 — output to src/generated)
+apps/api/src/generated/
+
+# Misc
+*.tgz
+*.tar.gz
+.cache/
+.eslintcache
+.parcel-cache/
+
+# Local-only dev log (per ROADMAP.md)
+daily-log.md
