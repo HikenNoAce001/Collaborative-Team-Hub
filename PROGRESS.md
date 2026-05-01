@@ -49,9 +49,8 @@ flowchart LR
     P15 --> P21 --> P22 --> P23 --> P24 --> P25
     P25 --> P26 --> P27 --> P28 --> P29 --> P210
 
-    class P01,P02,P03,P04,P06,P11,P12 done
-    class P13 wip
-    class P05,P14,P15,P21,P22,P23,P24,P25,P26,P27,P28,P29,P210 pending
+    class P01,P02,P03,P04,P06,P11,P12,P13,P14,P15 done
+    class P05,P21,P22,P23,P24,P25,P26,P27,P28,P29,P210 pending
 ```
 
 ---
@@ -211,6 +210,76 @@ The new `prisma-client` provider is TS-only (internally named `PrismaClientTs`) 
 
 ---
 
+## Phase 1.3 — Goals + milestones + activity feed (backend) ✅
+
+**Commit:** `d989707` — `feat(api): add goals, milestones, and activity feed endpoints`
+
+**Files written:**
+- `apps/api/src/modules/goals/{service,controller,router.js}` — exports two routers: `workspaceGoalsRouter` (mergeParams, mounted at `/workspaces/:id/goals`) for list+create, and `goalsRouter` (mounted at `/goals`) for the goal-id routes (`GET/PATCH/DELETE /:id`, `GET/POST /:id/updates`, `POST /:id/milestones`).
+- `apps/api/src/modules/milestones/{service,controller,router.js}` — `PATCH/DELETE /milestones/:id`. Loads milestone → goal → workspace → membership; owner-or-admin guard before write.
+
+**Auto-activity:** every status change on a goal and every progress change on a milestone writes a sibling `GoalUpdate` row in the same `prisma.$transaction`, with `kind` set to `status_change` / `milestone_progress` and a `meta` JSON capturing `{ from, to }`.
+
+**Permissions:** any workspace member can list/get goals + post manual updates; only owner-or-admin can patch/delete a goal or its milestones (enforced by a `requireGoalOwnerOrAdmin` guard that runs after `loadGoalAndMembership`).
+
+**Cursor pagination** on `GET /goals/:id/updates?before=<id>&pageSize=N` — looks up the cursor row's `createdAt` and filters `< it`.
+
+**Routes (8) added:**
+- `GET /workspaces/:id/goals` · `POST /workspaces/:id/goals`
+- `GET /goals/:id` · `PATCH /goals/:id` · `DELETE /goals/:id`
+- `GET /goals/:id/updates` · `POST /goals/:id/updates`
+- `POST /goals/:id/milestones` · `PATCH /milestones/:id` · `DELETE /milestones/:id`
+
+---
+
+## Phase 1.4 — Action items (backend) ✅
+
+**Commit:** `5844c5d` — `feat(api): add action item kanban endpoints`
+
+**Files written:**
+- `apps/api/src/modules/action-items/{service,controller,router.js}` — same two-router shape as goals: `workspaceActionItemsRouter` for list+create, `actionItemsRouter` for the item-id routes.
+
+**Filters** via `validate(listActionItemsQuery, 'query')`: `status` · `assigneeId` · `priority` · `goalId` · `q` (case-insensitive title contains) · `page` · `pageSize`. Default order: `status asc, priority desc, dueDate asc, createdAt desc` — natural for the kanban view.
+
+**Cross-resource integrity:** create + update validate that any provided `assigneeId` is a workspace member and any provided `goalId` belongs to the same workspace, throwing `404` otherwise.
+
+**Permissions:** any workspace member can CRUD action items in this phase. Tighter rules (creator/assignee/admin only on delete) marked `// TODO(scope):` — deferrable until a UI flow forces the choice.
+
+**Routes (5) added:** `GET/POST /workspaces/:id/action-items`, `GET/PATCH/DELETE /action-items/:id`.
+
+---
+
+## Phase 1.5 — Announcements + reactions + comments (backend) ✅
+
+**Commit:** `e80b2c9` — `feat(api): add announcements, reactions, and comments with sanitize-html`
+
+**Files written:**
+- `apps/api/src/lib/sanitize.js` — `sanitizeRichText(html)` over `sanitize-html@2.17.3` with the REQUIREMENTS §F.1 allowlist (`p, br, h1-h3, strong, em, u, s, code, pre, blockquote, ul, ol, li, a, img`), URL schemes restricted to `http/https/mailto` (and `data:` only for `<img>`), and a `transformTags.a` step that forces `rel="noopener noreferrer" target="_blank"` on every link.
+- `apps/api/src/modules/announcements/{service,controller,router.js}` — `workspaceAnnouncementsRouter` for list (pinned-first, newest, with `_count.reactions` + `_count.comments`) + create (admin), and `announcementsRouter` for the announcement-id routes including reactions and comments.
+- Added `listAnnouncementsQuery` to `@team-hub/schemas` (no inline validation per CLAUDE.md §5).
+
+**Sanitize order:** Tiptap HTML is sanitized server-side **before** persist on both create and update; `body` is replaced by `bodyHtml` in the update payload before hitting Prisma.
+
+**Reactions are idempotent both ways:** `addReaction` catches Prisma `P2002` (unique violation on `@@unique([announcementId, userId, emoji])`) and returns the existing row instead of erroring; `removeReaction` swallows `P2025` (record-not-found) so a double-DELETE is a `204`.
+
+**Comments:** `mentionUserIds[]` is filtered to actual workspace members at insert time — invalid ids drop silently, so a stale FE cache can't poison the row.
+
+**Routes (8) added:**
+- `GET /workspaces/:id/announcements` · `POST /workspaces/:id/announcements` (admin)
+- `GET /announcements/:id` · `PATCH /announcements/:id` (admin) · `DELETE /announcements/:id` (admin)
+- `POST /announcements/:id/reactions` · `DELETE /announcements/:id/reactions/:emoji`
+- `GET /announcements/:id/comments` · `POST /announcements/:id/comments`
+
+**Wire-up:** `app.js` mounts the workspace-scoped sub-routers **before** `workspacesRouter` so `/workspaces/:id/goals` etc. resolve to the right router instead of falling through to the workspace `:id` 404 path.
+
+---
+
+## Combined verification — Phases 1.3 + 1.4 + 1.5
+
+One curl chain in `tmp/verify-1.3-1.5.sh` exercises every endpoint above: register two users (A=admin, B=member), create workspace, invite + accept, create goal, change status (auto status_change update), post manual update, create milestone @50%, bump to 100% (two milestone_progress updates), get goal (verify 4 updates / 1 milestone), cursor-paginate updates, create action item assigned to B with goalId, filter list, B moves it to `IN_PROGRESS`, A creates announcement with `<script>` + `javascript:` href (verify both stripped, `<strong>` kept), B (non-admin) tries to create announcement → 403, B reacts 👍, double-react → idempotent, comment with mention of A, list comments, list announcements (pinned-first with `_count`), remove reaction, double-DELETE → 204, cleanup.
+
+---
+
 ## Session handoff (for the next Claude session)
 
 **Repo state at session end:** commits up to Phase 0.6 done. Local Postgres healthy via `docker compose up -d db`. `apps/api/.env` has working JWT secrets (gitignored). Migration `20260501105147_init` applied; all 14 tables present.
@@ -218,26 +287,23 @@ The new `prisma-client` provider is TS-only (internally named `PrismaClientTs`) 
 **Memory loaded automatically into next session:**
 - `MEMORY.md` index points to 8 memory files: user role (frontend eng learning backend), assessment context (deadline 2026-05-04, demo creds, GitHub URL), version bumps (Tiptap 3 / Recharts 3 / Sonner 2), and 5 feedback memories (concise commits / no auto-push / surface silent config / user runs dev commands / maintain PROGRESS.md).
 
-**Next session priority: bundle the remaining backend domains in one big push** — they all follow the workspaces shape (service/controller/router + workspace-scoped middleware + Zod validate + `$transaction` for multi-write). Aim for **Phases 1.3 + 1.4 + 1.5** in one session.
+**Repo state at session end:** Phases 1.3 + 1.4 + 1.5 done. All workspace-scoped backend domains (goals, milestones, action items, announcements, reactions, comments) now ship CRUD + auto-activity + sanitize-html. Combined curl chain verified end-to-end. Next session resumes with the realtime layer.
 
-**Phase 1.3 — Goals + milestones + activity feed**
-- `modules/goals/{service,controller,router}.js` — list (paginated, filterable by status/owner/q), create, get-with-milestones-and-last-20-updates, update (owner OR admin), delete (owner OR admin). Goal status changes auto-create a `GoalUpdate` row of kind `status_change` in the same transaction.
-- `modules/milestones/router.js` (top-level) — `POST /goals/:id/milestones`, `PATCH /milestones/:id`, `DELETE /milestones/:id`. Progress changes auto-create GoalUpdate of kind `milestone_progress`.
-- `modules/goal-updates/router.js` (or fold into goals) — `GET /goals/:id/updates` cursor-paginated by `?before=`, `POST /goals/:id/updates`.
-- Schemas already in `@team-hub/schemas` (`createGoalSchema`, `updateGoalSchema`, `listGoalsQuery`, etc.).
+**Next session priority: realtime + advanced features.**
 
-**Phase 1.4 — Action items**
-- `modules/action-items/{service,controller,router}.js`. Routes: `GET/POST /workspaces/:id/action-items`, `GET/PATCH/DELETE /action-items/:id`. Filters via `validate(listActionItemsQuery, 'query')`.
-- Same shape as goals but no milestones/updates — simpler.
+**Phase 2.1 — Realtime wiring**
+- `realtime/io.js` — Socket.io server bound to the existing `http.createServer`. Auth handshake middleware reads the `at` cookie from the upgrade request, verifies via `verifyAccess`, attaches `socket.userId` (reject otherwise per CLAUDE.md §7).
+- Rooms: `workspace:${id}` (joined on `workspace:join` after membership re-check) and `user:${id}` (auto-joined on connect for personal notifications).
+- Presence: keep an in-memory `Map<workspaceId, Set<userId>>` indexed by socket; emit `presence:update` on connect/disconnect.
+- Service-layer emit hooks: every mutating service action (goal/milestone/action-item/announcement/reaction/comment) returns its result and lets the controller / a small `emit(io, event, payload)` helper push to the room.
 
-**Phase 1.5 — Announcements + reactions + comments**
-- `npm i sanitize-html` (api). `lib/sanitize.js` allowlists `p, h1-h3, strong, em, u, s, code, pre, blockquote, ul, ol, li, a, img` per REQUIREMENTS §F.1.
-- `modules/announcements/{service,controller,router}.js` — admin-only CRUD + pin toggle. Sanitize `body` server-side BEFORE persist.
-- `modules/reactions/router.js` (or fold) — `POST/DELETE /announcements/:id/reactions[/:emoji]`. Idempotent via `@@unique([announcementId, userId, emoji])`.
-- `modules/comments/router.js` — `GET /announcements/:id/comments` (cursor), `POST` with `mentionUserIds[]`. Mentions trigger `Notification` rows in next phase.
-- Feed `GET /workspaces/:id/announcements` returns `pinned-first, then newest`, with `_count` for reactionCount + commentCount.
+**Phase 2.2 — Mentions + notifications**
+- On `comment.create` with `mentionUserIds[]` → write a `Notification` row per mentioned user (kind=`mention`, payload contains announcementId + commentId + actor) and emit `notification:created` to each `user:${id}` room.
+- `GET /notifications` (cursor) · `POST /notifications/:id/read` · `POST /notifications/read-all`.
 
-**After 1.3-1.5**: Phase 2.1 (Socket.io wiring + presence + emit on every write), Phase 2.2 (mentions+notifications), Phase 2.3 (analytics+CSV), Phase 2.5 (audit log).
+**Phase 2.3 — Analytics + CSV** · **Phase 2.5 — Audit log**
+- Analytics: aggregate queries against the existing indexes (`workspaceId+status`, `workspaceId+dueDate`) → JSON for charts + a CSV streaming endpoint.
+- Audit: a tiny `audit/service.js` wrapping `prisma.auditLog.create`; called from each domain service inside the existing `$transaction` for create/update/delete/role-change/invite/etc.
 
 **Then frontend** — Phase 0.5 (web skeleton) bundled with login/register pages, and feature pages built top-down with TanStack Query against the live API. With the backend complete, frontend can consume real data immediately rather than mocks.
 
