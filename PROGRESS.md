@@ -49,9 +49,9 @@ flowchart LR
     P15 --> P21 --> P22 --> P23 --> P24 --> P25
     P25 --> P26 --> P27 --> P28 --> P29 --> P210
 
-    class P01,P02,P03,P04,P06 done
-    class P11 wip
-    class P05,P12,P13,P14,P15,P21,P22,P23,P24,P25,P26,P27,P28,P29,P210 pending
+    class P01,P02,P03,P04,P06,P11 done
+    class P05 wip
+    class P12,P13,P14,P15,P21,P22,P23,P24,P25,P26,P27,P28,P29,P210 pending
 ```
 
 ---
@@ -156,6 +156,43 @@ The new `prisma-client` provider is TS-only (internally named `PrismaClientTs`) 
 
 ---
 
+## Phase 1.1 — Auth end-to-end (backend) ✅
+
+**Files written under `apps/api/src/`:**
+- `lib/tokens.js` — `signAccess` / `verifyAccess` / `signRefresh` (with random `jti`) / `verifyRefresh` / `hashRefresh` (sha256).
+- `lib/cookies.js` — `setAccessCookie` / `setRefreshCookie` / `clearAuthCookies`. `at` Path=/ for 15m, `rt` Path=/auth for 30d. `httpOnly` always; `secure` only in prod; `sameSite=lax`.
+- `middleware/auth.js` — `requireAuth` reads `at` cookie, verifies JWT, attaches `req.user.id`.
+- `middleware/validate.js` — generic Zod body/query/params validator; ZodError flows to error handler → 422.
+- `middleware/rate-limit.js` — `authLimiter` 10/min/ip on `/auth/*`.
+- `modules/auth/{service,controller,router}.js` — register / login / refresh / logout / me. Refresh rotation runs in `prisma.$transaction` so revoke-old + issue-new is atomic.
+- `modules/users/{controller,router}.js` — `PATCH /users/me` (avatar route deferred until Cloudinary keys are configured).
+
+**Wired in `app.js`:** `/auth` → `authRouter`, `/users` → `usersRouter`, before the 404/error handlers.
+
+**Three deviations / fixes during the phase:**
+1. **`bcrypt` → `bcryptjs`.** After `brew upgrade node@22` to 22.22.2, the prebuilt `bcrypt.node` was linked against the old icu4c library that brew removed; native `.node` binaries are version-fragile in general. `bcryptjs` is pure JS, same async API, ~30% slower per hash but we hash on register/login only.
+2. **`.npmrc` with `public-hoist-pattern[]=*@prisma/*`.** Prisma 7's generated client at `apps/api/src/generated/prisma/runtime/client.js` does flat `require('@prisma/client-runtime-utils')`. pnpm normally nests transitives under their parent, so this require fails. Hoisting all `@prisma/*` to the workspace root resolves it cleanly. Did a clean `node_modules` reinstall to apply.
+3. **`signRefresh` adds a random `jti` claim.** Without it, a refresh JWT signed for the same user within the same second produced a byte-identical token → byte-identical sha256 → `RefreshToken.tokenHash` unique-constraint violation. The 16-byte random `jti` makes each refresh token unique.
+
+**Verified by user (9/9 curl steps pass):**
+| Step | Expected | Got |
+|------|----------|-----|
+| `POST /auth/register` (good payload) | 201 + at/rt cookies | ✅ 201 |
+| `GET /auth/me` (with at cookie) | 200 user | ✅ 200 |
+| `POST /auth/login` (bad password) | 401 generic | ✅ 401 |
+| `POST /auth/login` (good) | 200 + new cookies | ✅ 200 |
+| `POST /auth/refresh` | 200 + rotated rt | ✅ 200 (new jti confirmed) |
+| `PATCH /users/me` | 200 updated user | ✅ 200 |
+| `POST /auth/logout` | 204 + cleared cookies | ✅ 204 |
+| `GET /auth/me` (after logout) | 401 | ✅ 401 |
+| `POST /auth/register` (weak password) | 422 + Zod field errors | ✅ 422 |
+
+**Known follow-ups (not blockers):**
+- Wrap `registerUser` in `$transaction` so a refresh-token persist failure rolls back the user create.
+- `POST /users/me/avatar` stubbed pending Cloudinary keys.
+
+---
+
 ## Session handoff (for the next Claude session)
 
 **Repo state at session end:** commits up to Phase 0.6 done. Local Postgres healthy via `docker compose up -d db`. `apps/api/.env` has working JWT secrets (gitignored). Migration `20260501105147_init` applied; all 14 tables present.
@@ -163,18 +200,24 @@ The new `prisma-client` provider is TS-only (internally named `PrismaClientTs`) 
 **Memory loaded automatically into next session:**
 - `MEMORY.md` index points to 8 memory files: user role (frontend eng learning backend), assessment context (deadline 2026-05-04, demo creds, GitHub URL), version bumps (Tiptap 3 / Recharts 3 / Sonner 2), and 5 feedback memories (concise commits / no auto-push / surface silent config / user runs dev commands / maintain PROGRESS.md).
 
-**Next session starts here — Phase 1.1 (Auth end-to-end):**
-1. **Backend** — install `jsonwebtoken@^9.0.2`, `bcrypt@^5.1.1`, `express-rate-limit` (latest). Build:
-   - `src/lib/tokens.js` (`signAccess`, `signRefresh`, `verifyAccess`, `hashRefresh` with sha256)
-   - `src/lib/cookies.js` (set/clear `at` + `rt` with `httpOnly` / `Secure` / `SameSite=Lax`)
-   - `src/middleware/require-auth.js` (verify `at` cookie → attach `req.user`)
-   - `src/middleware/validate.js` (generic Zod body/query/params validator)
-   - `src/modules/auth/{router,controller,service}.js` for `POST /auth/{register,login,refresh,logout}`, `GET /auth/me`
-   - `src/modules/users/router.js` for `PATCH /users/me`, `POST /users/me/avatar` (avatar can be stub until Cloudinary keys are set)
-   - Rate limit `/auth/*` at 10/min/ip per CLAUDE.md §9
-2. **Verify** via `curl` chain: register → see set-cookies → `/auth/me` with cookie → refresh → logout.
-3. Commit: `feat(api): implement jwt auth with refresh rotation`.
-4. **Then** Phase 0.5 (web skeleton — `apps/web` with Next 16 + Tailwind 4 + providers + axios refresh interceptor) → Phase 1.1 web side (login + register pages consuming `@team-hub/schemas`).
+**Next session starts here — Phase 0.5 (Web skeleton):**
+
+The backend now has working auth at `http://localhost:4000`. Time to build the Next.js shell that consumes it.
+
+1. **Install** in `apps/web`: `next@^16.2.4`, `react@^19`, `react-dom@^19`, `tailwindcss@^4`, `@tailwindcss/postcss@^4`, `zustand@^5`, `@tanstack/react-query@^5`, `socket.io-client@^4.8.3`, `axios@^1`, `react-hook-form@^7`, `@hookform/resolvers`, `zod@^4`, `next-themes@^0.4`, `sonner@^2`, `lucide-react`, `clsx`, `tailwind-merge`, `class-variance-authority@^0.7`. Tiptap/Recharts/dnd-kit later when needed.
+2. **App scaffold** under `apps/web/src/app/`:
+   - `layout.jsx`, `globals.css` (Tailwind v4 entry: `@import "tailwindcss";`), `providers.jsx` (TanStack Query + ThemeProvider + Sonner Toaster), `page.jsx` (redirect to `/login`).
+   - Route groups `(auth)/login/page.jsx` and `(auth)/register/page.jsx` using `react-hook-form` + Zod resolvers from `@team-hub/schemas` (`registerSchema`, `loginSchema`).
+   - `(app)/layout.jsx` calls `/auth/me` server-side and redirects to `/login` if 401.
+3. **`apps/web/src/lib/`**:
+   - `api.js` — axios instance, `withCredentials: true`, `baseURL: NEXT_PUBLIC_API_URL`. 401 interceptor calls `/auth/refresh` once, retries the original request, otherwise redirects to `/login`.
+   - `socket.js` — socket.io factory keyed by workspace.
+   - `cn.js` — clsx + tailwind-merge.
+4. **next.config.mjs**, **jsconfig.json** with `@/*` alias, **eslint.config.js** re-exporting `@team-hub/eslint-config/next`.
+5. **Verify**: `pnpm --filter @team-hub/web dev` boots on :3000; `/login` form posts to API; on 200, redirected to `/workspaces` (empty for now).
+6. Commit: `feat(web): bootstrap next 16 app router with tailwind v4` + `feat(web): add login and register flows`.
+
+**Then** Phase 1.2 (Workspaces backend + frontend) → 1.3 (Goals) → 1.4 (Action items) → 1.5 (Announcements) → 2.x.
 
 Cut list & time triggers (when behind): see `ROADMAP.md` "Cut list" and "Time triggers" sections.
 
