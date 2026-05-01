@@ -13,6 +13,8 @@ import { logger } from './lib/logger.js';
 import { errorHandler, notFoundHandler } from './middleware/error.js';
 import { authRouter } from './modules/auth/router.js';
 import { usersRouter } from './modules/users/router.js';
+import { workspacesRouter } from './modules/workspaces/router.js';
+import { invitationsRouter } from './modules/invitations/router.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const pkg = JSON.parse(readFileSync(resolve(__dirname, '..', 'package.json'), 'utf8'));
@@ -51,6 +53,8 @@ export function createApp() {
 
   app.use('/auth', authRouter);
   app.use('/users', usersRouter);
+  app.use('/workspaces', workspacesRouter);
+  app.use('/invitations', invitationsRouter);
 
   app.use(notFoundHandler);
   app.use(errorHandler);

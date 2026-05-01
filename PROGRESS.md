@@ -49,9 +49,9 @@ flowchart LR
     P15 --> P21 --> P22 --> P23 --> P24 --> P25
     P25 --> P26 --> P27 --> P28 --> P29 --> P210
 
-    class P01,P02,P03,P04,P06,P11 done
-    class P05 wip
-    class P12,P13,P14,P15,P21,P22,P23,P24,P25,P26,P27,P28,P29,P210 pending
+    class P01,P02,P03,P04,P06,P11,P12 done
+    class P13 wip
+    class P05,P14,P15,P21,P22,P23,P24,P25,P26,P27,P28,P29,P210 pending
 ```
 
 ---
@@ -193,6 +193,24 @@ The new `prisma-client` provider is TS-only (internally named `PrismaClientTs`) 
 
 ---
 
+## Phase 1.2 — Workspaces, members, invitations (backend) ✅
+
+**Files written:**
+- `apps/api/src/middleware/workspace-role.js` — `requireWorkspaceMember()` and `requireWorkspaceRole(role)` factories. Each loads the `WorkspaceMember` row by `(workspaceId, userId)` and either attaches it as `req.workspaceMember` or rejects with `403`.
+- `apps/api/src/lib/invitation-token.js` — `generateInviteToken()` (32 random bytes hex + sha256 hash + 7-day expiry) and `hashInviteToken()`. Raw token returned to admin once; only hash persisted.
+- `apps/api/src/modules/workspaces/{service,controller,router}.js` — workspaces CRUD, members list/role/remove (with last-admin guard), invitations create/list, all admin-protected appropriately. Uses `prisma.$transaction` for create-with-membership and member role changes.
+- `apps/api/src/modules/invitations/router.js` — top-level `POST /invitations/accept` and `DELETE /invitations/:id` (re-uses workspaces controller). Accept runs in `$transaction`: validate token → check expiry / already-member → create membership → delete invitation atomically.
+
+**Routes (12) wired in `app.js`:**
+- `GET /workspaces` · `POST /workspaces` · `GET /workspaces/:id` · `PATCH /workspaces/:id` · `DELETE /workspaces/:id`
+- `GET /workspaces/:id/members` · `PATCH /workspaces/:id/members/:userId` · `DELETE /workspaces/:id/members/:userId`
+- `GET /workspaces/:id/invitations` · `POST /workspaces/:id/invitations`
+- `POST /invitations/accept` · `DELETE /invitations/:id`
+
+**Verified by user (15/15 curl steps pass):** workspace create + list + detail + update; invitation generate + accept; member listing (count=2); 403 on non-admin write; admin promotion; 404 on bad token; 204 on member remove; member count back to 1.
+
+---
+
 ## Session handoff (for the next Claude session)
 
 **Repo state at session end:** commits up to Phase 0.6 done. Local Postgres healthy via `docker compose up -d db`. `apps/api/.env` has working JWT secrets (gitignored). Migration `20260501105147_init` applied; all 14 tables present.
@@ -200,24 +218,30 @@ The new `prisma-client` provider is TS-only (internally named `PrismaClientTs`) 
 **Memory loaded automatically into next session:**
 - `MEMORY.md` index points to 8 memory files: user role (frontend eng learning backend), assessment context (deadline 2026-05-04, demo creds, GitHub URL), version bumps (Tiptap 3 / Recharts 3 / Sonner 2), and 5 feedback memories (concise commits / no auto-push / surface silent config / user runs dev commands / maintain PROGRESS.md).
 
-**Next session starts here — Phase 0.5 (Web skeleton):**
+**Next session priority: bundle the remaining backend domains in one big push** — they all follow the workspaces shape (service/controller/router + workspace-scoped middleware + Zod validate + `$transaction` for multi-write). Aim for **Phases 1.3 + 1.4 + 1.5** in one session.
 
-The backend now has working auth at `http://localhost:4000`. Time to build the Next.js shell that consumes it.
+**Phase 1.3 — Goals + milestones + activity feed**
+- `modules/goals/{service,controller,router}.js` — list (paginated, filterable by status/owner/q), create, get-with-milestones-and-last-20-updates, update (owner OR admin), delete (owner OR admin). Goal status changes auto-create a `GoalUpdate` row of kind `status_change` in the same transaction.
+- `modules/milestones/router.js` (top-level) — `POST /goals/:id/milestones`, `PATCH /milestones/:id`, `DELETE /milestones/:id`. Progress changes auto-create GoalUpdate of kind `milestone_progress`.
+- `modules/goal-updates/router.js` (or fold into goals) — `GET /goals/:id/updates` cursor-paginated by `?before=`, `POST /goals/:id/updates`.
+- Schemas already in `@team-hub/schemas` (`createGoalSchema`, `updateGoalSchema`, `listGoalsQuery`, etc.).
 
-1. **Install** in `apps/web`: `next@^16.2.4`, `react@^19`, `react-dom@^19`, `tailwindcss@^4`, `@tailwindcss/postcss@^4`, `zustand@^5`, `@tanstack/react-query@^5`, `socket.io-client@^4.8.3`, `axios@^1`, `react-hook-form@^7`, `@hookform/resolvers`, `zod@^4`, `next-themes@^0.4`, `sonner@^2`, `lucide-react`, `clsx`, `tailwind-merge`, `class-variance-authority@^0.7`. Tiptap/Recharts/dnd-kit later when needed.
-2. **App scaffold** under `apps/web/src/app/`:
-   - `layout.jsx`, `globals.css` (Tailwind v4 entry: `@import "tailwindcss";`), `providers.jsx` (TanStack Query + ThemeProvider + Sonner Toaster), `page.jsx` (redirect to `/login`).
-   - Route groups `(auth)/login/page.jsx` and `(auth)/register/page.jsx` using `react-hook-form` + Zod resolvers from `@team-hub/schemas` (`registerSchema`, `loginSchema`).
-   - `(app)/layout.jsx` calls `/auth/me` server-side and redirects to `/login` if 401.
-3. **`apps/web/src/lib/`**:
-   - `api.js` — axios instance, `withCredentials: true`, `baseURL: NEXT_PUBLIC_API_URL`. 401 interceptor calls `/auth/refresh` once, retries the original request, otherwise redirects to `/login`.
-   - `socket.js` — socket.io factory keyed by workspace.
-   - `cn.js` — clsx + tailwind-merge.
-4. **next.config.mjs**, **jsconfig.json** with `@/*` alias, **eslint.config.js** re-exporting `@team-hub/eslint-config/next`.
-5. **Verify**: `pnpm --filter @team-hub/web dev` boots on :3000; `/login` form posts to API; on 200, redirected to `/workspaces` (empty for now).
-6. Commit: `feat(web): bootstrap next 16 app router with tailwind v4` + `feat(web): add login and register flows`.
+**Phase 1.4 — Action items**
+- `modules/action-items/{service,controller,router}.js`. Routes: `GET/POST /workspaces/:id/action-items`, `GET/PATCH/DELETE /action-items/:id`. Filters via `validate(listActionItemsQuery, 'query')`.
+- Same shape as goals but no milestones/updates — simpler.
 
-**Then** Phase 1.2 (Workspaces backend + frontend) → 1.3 (Goals) → 1.4 (Action items) → 1.5 (Announcements) → 2.x.
+**Phase 1.5 — Announcements + reactions + comments**
+- `npm i sanitize-html` (api). `lib/sanitize.js` allowlists `p, h1-h3, strong, em, u, s, code, pre, blockquote, ul, ol, li, a, img` per REQUIREMENTS §F.1.
+- `modules/announcements/{service,controller,router}.js` — admin-only CRUD + pin toggle. Sanitize `body` server-side BEFORE persist.
+- `modules/reactions/router.js` (or fold) — `POST/DELETE /announcements/:id/reactions[/:emoji]`. Idempotent via `@@unique([announcementId, userId, emoji])`.
+- `modules/comments/router.js` — `GET /announcements/:id/comments` (cursor), `POST` with `mentionUserIds[]`. Mentions trigger `Notification` rows in next phase.
+- Feed `GET /workspaces/:id/announcements` returns `pinned-first, then newest`, with `_count` for reactionCount + commentCount.
+
+**After 1.3-1.5**: Phase 2.1 (Socket.io wiring + presence + emit on every write), Phase 2.2 (mentions+notifications), Phase 2.3 (analytics+CSV), Phase 2.5 (audit log).
+
+**Then frontend** — Phase 0.5 (web skeleton) bundled with login/register pages, and feature pages built top-down with TanStack Query against the live API. With the backend complete, frontend can consume real data immediately rather than mocks.
+
+**Demo seed (Phase N) and Railway deploy** are the last two items; both depend on all features being shipped.
 
 Cut list & time triggers (when behind): see `ROADMAP.md` "Cut list" and "Time triggers" sections.
 
