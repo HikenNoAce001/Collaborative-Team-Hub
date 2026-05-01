@@ -3,11 +3,11 @@ import { createServer } from 'node:http';
 import { env } from './env.js';
 import { createApp } from './app.js';
 import { logger } from './lib/logger.js';
+import { attachIo } from './realtime/io.js';
 
 const app = createApp();
 const httpServer = createServer(app);
-
-// Socket.io attaches here in Phase 2.1 (real-time wiring).
+attachIo(httpServer);
 
 httpServer.listen(env.PORT, () => {
   logger.info({ port: env.PORT, env: env.NODE_ENV }, 'api listening');

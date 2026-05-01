@@ -1,3 +1,4 @@
+import { emitToWorkspace } from '../../realtime/emit.js';
 import * as service from './service.js';
 
 export async function list(req, res) {
@@ -6,8 +7,10 @@ export async function list(req, res) {
 }
 
 export async function create(req, res) {
-  const item = await service.createActionItem(req.params.id, req.body);
+  const workspaceId = req.params.id;
+  const item = await service.createActionItem(workspaceId, req.body);
   res.status(201).json({ item });
+  emitToWorkspace(workspaceId, 'action-item:created', { workspaceId, item });
 }
 
 export async function get(req, res) {
@@ -16,15 +19,15 @@ export async function get(req, res) {
 }
 
 export async function update(req, res) {
-  const item = await service.updateActionItem(
-    req.params.id,
-    req.workspaceMember.workspaceId,
-    req.body,
-  );
+  const workspaceId = req.workspaceMember.workspaceId;
+  const item = await service.updateActionItem(req.params.id, workspaceId, req.body);
   res.json({ item });
+  emitToWorkspace(workspaceId, 'action-item:updated', { workspaceId, item });
 }
 
 export async function remove(req, res) {
+  const { workspaceId, id } = req.actionItem;
   await service.deleteActionItem(req.params.id);
   res.status(204).end();
+  emitToWorkspace(workspaceId, 'action-item:deleted', { workspaceId, id });
 }
