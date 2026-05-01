@@ -7,6 +7,9 @@ import helmet from 'helmet';
 import cors from 'cors';
 import cookieParser from 'cookie-parser';
 import { pinoHttp } from 'pino-http';
+import swaggerUi from 'swagger-ui-express';
+
+import { openapiSpec } from './docs/openapi.js';
 
 import { env } from './env.js';
 import { logger } from './lib/logger.js';
@@ -66,6 +69,17 @@ export function createApp() {
       uptimeSec: Math.round(process.uptime()),
     });
   });
+
+  // /api/docs serves Swagger UI; /api/openapi.json serves the raw spec.
+  // Helmet's default CSP blocks the inline scripts Swagger UI ships, so it
+  // gets a permissive CSP scoped to this subtree only.
+  app.get('/api/openapi.json', (_req, res) => res.json(openapiSpec));
+  app.use(
+    '/api/docs',
+    helmet({ contentSecurityPolicy: false }),
+    swaggerUi.serve,
+    swaggerUi.setup(openapiSpec, { customSiteTitle: 'Team Hub API' }),
+  );
 
   app.use('/auth', authRouter);
   app.use('/users', usersRouter);
