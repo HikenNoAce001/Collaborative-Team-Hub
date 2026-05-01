@@ -14,11 +14,24 @@ Authored 2026-05-01. Backend feature-complete; frontend not started.
 | Layer    | Status                                                                                |
 | -------- | ------------------------------------------------------------------------------------- |
 | Backend  | **100% feature surface** for §B–§I of `requirements.md`. 13/13 backend phases shipped. |
-| Frontend | **0% — not started.** No `apps/web/src/` files yet. Phase 0.5 onwards.                 |
+| Frontend | **~30%** — Phase 0.5 done. Auth pages, workspaces dashboard, workspace shell with sidebar/topbar/theme/presence are live. Six feature pages render `Placeholder` cards with API + acceptance criteria. |
 | Deploy   | Local dev only. Railway not yet provisioned.                                          |
 | Demo seed| Stub only (`apps/api/prisma/seed.js` is a no-op).                                     |
 | README   | Repo overview only — setup/run docs not written.                                      |
 | Video    | Not recorded.                                                                         |
+
+**What works in the browser right now** (run both servers + register a user):
+- `/login` + `/register` → cookies set → redirect to `/workspaces`
+- `/workspaces` → list with accent dot + role pill, empty state, "+ New" form
+- `/w/<id>/...` → server-side auth gate (no flash) → workspace shell with:
+  - Sidebar: workspace name + accent, 5 nav links + admin-only Audit Log, member list with live green dots from socket presence
+  - Topbar: theme toggle (light/dark works correctly), notification bell (placeholder), logout
+  - Each feature route renders a `Placeholder` card showing the API endpoints and acceptance criteria for that section
+- Anonymous deep links to `(app)` routes redirect to `/login?next=…` (Next 16 `proxy.js`)
+- Invalid/expired `at` cookie → server-layout `/auth/me` rejects → redirect
+
+**What the next agent picks up:**
+Replace the `Placeholder` in each of the 6 feature pages with the real UI. Recommended order (easiest → hardest): Members → Announcements → Action Items (kanban + optimistic) → Goals → Analytics → Audit Log.
 
 **Repo:** `git remote -v` already configured. Branch: `main`. Several commits ahead of origin — **not pushed**. Push policy: only when the user explicitly says so.
 

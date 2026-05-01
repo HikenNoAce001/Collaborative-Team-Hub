@@ -4,7 +4,14 @@ Per-section map of every requirement in `requirements.md` to **the implementatio
 
 > **Legend:** ✅ shipped & verified · 🟡 shipped, gap noted · ⏳ in progress · 🔲 not started · 🚫 stretch / out-of-scope on this timeline
 
-**Snapshot (2026-05-01, end of backend phase):** 53 ✅ · 5 🟡 · 26 🔲 (all frontend) · 4 🚫 (stretch).
+**Snapshot (2026-05-02, after web shell pass):** 60 ✅ · 5 🟡 · 19 🔲 (frontend feature pages) · 4 🚫 (stretch).
+
+**FE state at this snapshot:**
+- ✅ Auth pages (login + register) wired to RHF + Zod resolver + axios + cookies
+- ✅ Workspaces dashboard list + create form + role badge
+- ✅ Workspace shell at `/w/[id]` — sidebar nav (5 routes + admin Audit Log), topbar (theme toggle, logout, notification bell placeholder), member list with live presence dots
+- ✅ Auth gate — Next 16 `proxy.js` for cookie-presence redirects + Server Component layout doing the actual `/auth/me` verification
+- 🔲 Six feature pages (`announcements`, `goals`, `action-items`, `analytics`, `members`, `audit`) currently render a `Placeholder` card with API endpoints + acceptance criteria. Routes exist; UI is the next agent's job.
 
 ---
 
@@ -47,7 +54,7 @@ Per-section map of every requirement in `requirements.md` to **the implementatio
 | B.5 | `GET /auth/me` returns user, 401 if not                  | ✅      | Behind `requireAuth`                                                                           |
 | B.6 | `PATCH /users/me` (name)                                 | ✅      | `modules/users/`                                                                               |
 | B.6 | `POST /users/me/avatar` Cloudinary, ≤2MB, jpeg/png/webp  | 🔲     | **Stub** — Cloudinary creds not configured; `// TODO(blocked):` in route. Acceptance §B avatar deferred. |
-| B   | Acceptance: Refresh on access expiry happens once transparently | 🔲 (FE) | Axios interceptor in `lib/api.js` (Phase 0.5)                                              |
+| B   | Acceptance: Refresh on access expiry happens once transparently | ✅      | `apps/web/src/lib/api.js` — single 401 → `/auth/refresh` → retry interceptor with a request queue. Bounces to `/login` on second failure. |
 
 **Test commands:**
 ```bash
@@ -69,9 +76,9 @@ curl -i -b jar localhost:4000/auth/me
 | C.1 | `GET /workspaces/:id` — full + my role                                   | ✅      | Returns `_count` of members/goals/items/announcements + `myRole`                  |
 | C.1 | `PATCH /workspaces/:id` admin only                                       | ✅      | `requireWorkspaceRole('ADMIN')`                                                   |
 | C.1 | `DELETE /workspaces/:id` admin only — cascades                           | ✅      | Cascade FKs in schema; verified — children removed                                 |
-| C.1 | Confirms by typed name on FE                                             | 🔲 (FE) | Phase 1.2 frontend                                                                |
+| C.1 | Confirms by typed name on FE                                             | 🔲 (FE) | Workspace settings page (next agent).                                             |
 | C.2 | `GET /workspaces/:id/members` — list with role                           | ✅      | Returns `[{id, role, joinedAt, user:{id, email, name, avatarUrl}}]`               |
-| C.2 | Online state from socket presence                                        | ✅ (BE) | `presence:update` socket event broadcasts `online[]`; FE merges in member list. Backend ✅; FE wiring 🔲 (Phase 1.2 FE) |
+| C.2 | Online state from socket presence                                        | ✅      | `Shell.jsx` subscribes to `presence:update` and renders a green dot per online member in the sidebar. End-to-end verified.  |
 | C.2 | `PATCH /…/members/:userId` — admin; can't demote yourself if last admin  | ✅      | `service.updateMemberRole`: `Conflict('Cannot demote yourself if last admin')`     |
 | C.2 | `DELETE /…/members/:userId` — admin; can't remove last admin             | ✅      | `service.removeMember`: `Conflict('Cannot remove the last admin')`                |
 | C.3 | `POST /…/invitations` admin                                              | ✅      | `requireWorkspaceRole('ADMIN')`; raw token returned ONCE                          |
@@ -81,7 +88,7 @@ curl -i -b jar localhost:4000/auth/me
 | C.3 | `DELETE /invitations/:id` admin                                          | ✅      |                                                                                   |
 | C.3 | `POST /invitations/accept` body `{token}` authed; member+delete in tx; audit | ✅  | `service.acceptInvitation` runs entirely in `$transaction` w/ `audit(tx, {action:'ACCEPT_INVITE'})` |
 | C.3 | 410 expired, 404 not found, 409 already member                           | ✅      |                                                                                   |
-| C   | Acceptance: workspace switcher in top-left, accent dots                   | 🔲 (FE) | Phase 1.2 FE                                                                      |
+| C   | Acceptance: workspace switcher in top-left, accent dots                   | 🟡      | Sidebar already shows the current workspace with its accent dot + "← All workspaces" jump back. A multi-workspace dropdown switcher is the next-agent enhancement. |
 
 **Test commands:**
 ```bash
@@ -178,7 +185,7 @@ curl -i -b jar localhost:4000/auth/me
 | G.1 | Reaction/comment counts increment live                                    | ✅ (BE)| `reaction:added/removed`, `comment:created` fire to workspace room                                |
 | G.2 | Presence map: in-memory Map<workspaceId, Set<userId>>                     | 🟡     | **Derived from socket.io room membership** instead of a parallel Map — same observable behavior, no drift between two stores. Documented in `realtime/io.js`. |
 | G.2 | Disconnect broadcasts `presence:update` w/ online list                   | ✅      | `disconnecting` handler `setImmediate(broadcastPresence)`                                        |
-| G.2 | Green dot on member avatars                                               | 🔲 (FE) | Phase 1.2 FE                                                                                     |
+| G.2 | Green dot on member avatars                                               | ✅      | `Shell.jsx` member sidebar — green dot when `online.has(user.id)`, grey otherwise.                |
 | G.3 | `@user` syntax FE → resolves via member search → mentionUserIds[]         | 🔲 (FE) | Backend accepts the array                                                                        |
 | G.3 | Server validates mentionedUserId is a workspace member                    | ✅      | `service.createComment` filters to members; invalid ids drop silently                              |
 | G.3 | Notification row per mention + `notification:created` emit                | ✅      | Inside the same `prisma.$transaction` as the comment                                              |
@@ -253,7 +260,7 @@ curl -i -b jar localhost:4000/auth/me
 
 | #   | Requirement                                            | Status |
 | --- | ------------------------------------------------------ | :----: |
-| J.1 | Dark/light theme via next-themes + Tailwind v4 dark    | 🔲 (FE) |
+| J.1 | Dark/light theme via next-themes + Tailwind v4 dark    | ✅      | `ThemeToggle.jsx` swaps via `next-themes`. CSS variables in `.dark { ... }` block override the `@theme` defaults; verified live. |
 | J.2 | ⌘K palette via cmdk                                    | 🔲 (FE) |
 | J.3 | Swagger at `/api/docs` (with prod env flag)            | ✅ (no env gate) — currently always on; add `if (env.NODE_ENV !== 'production')` guard before deploy if desired |
 | J.4 | Email invitations via Nodemailer                        | 🚫     |
@@ -312,6 +319,48 @@ Email change · password reset · MFA · public workspaces · file attachments o
 | N   | 3 goals with 3 milestones (100/60/20%)                                    | 🔲     |
 | N   | 6 action items spanning all four statuses; 2 overdue                      | 🔲     |
 | N   | 2 announcements (1 pinned), reactions, 1 mention comment, 1 notification  | 🔲     |
+
+---
+
+## Manual test checklist — what's clickable RIGHT NOW
+
+Run both servers (`docker compose up -d db` + `pnpm --filter @team-hub/api dev` + `pnpm --filter @team-hub/web dev`) then walk through this list. Each item maps to a rubric line.
+
+### Auth flow (§B)
+- [ ] `http://localhost:3000` → instantly bounces to `/login` (no flash). Maps to: B Acceptance "redirect on auth expiry".
+- [ ] `/register` → fill name/email/password → submit → lands on `/workspaces` with cookies set. Maps to: B.1 + B Acceptance.
+- [ ] Refresh the page on `/workspaces` → still authed (Server Component re-reads cookie). Maps to: B.3.
+- [ ] Submit `/register` with a 6-character password → field error from the Zod schema. Maps to: B.1 password rule.
+- [ ] Submit `/login` with a wrong password → "Invalid credentials" message (no leak about whether the email exists). Maps to: B.2.
+- [ ] DevTools → Application → Cookies: `at` and `rt` are both `httpOnly`, `SameSite=Lax`. Maps to: B locked decision.
+- [ ] Click Logout in the topbar → cookies clear → bounce to `/login`. Maps to: B.4.
+- [ ] After logout, hit `/workspaces` directly → proxy bounces to `/login?next=%2Fworkspaces`. Maps to: B.5 + middleware.
+- [ ] Edit the `at` cookie value to garbage and refresh `/workspaces` → still bounces (server layout `/auth/me` rejects). Maps to: M.4 server-side auth enforcement.
+
+### Workspaces (§C)
+- [ ] Empty state on `/workspaces` shows "No workspaces yet" + "Create your first workspace" link.
+- [ ] Click "+ New" → name "Acme", description, pick a non-default accent color → submit → land on `/w/<id>/announcements` (the workspace shell).
+- [ ] Back to `/workspaces` → the new workspace appears with its accent dot and "admin" badge on the right.
+- [ ] Hard-reload `/w/<id>` → workspace shell re-fetches from server (sidebar still shows your workspace name + accent dot).
+
+### Workspace shell (§G presence + nav)
+- [ ] Sidebar shows: Announcements, Goals, Action Items, Analytics, Members, **Audit Log** (only because you're admin — invite a non-admin and the row disappears).
+- [ ] Click each nav item → URL updates → active row is highlighted in the sidebar → main area shows the "Coming soon" placeholder card with the API endpoints + acceptance criteria for that feature.
+- [ ] Member list at the bottom of the sidebar shows your name with a green dot (you're online via the websocket).
+- [ ] Open a second browser (or incognito), register a second user, accept an invite from the first browser, then load `/w/<id>` in the second browser. The first browser's sidebar member list should now show two green dots — proves `presence:update` is broadcasting.
+- [ ] Close the incognito window. Within ~5s the first browser's sidebar drops the second user's dot to grey. Maps to: G.2 acceptance.
+
+### Theme (§J.1)
+- [ ] Click the moon/sun icon in the topbar — colors swap instantly across the entire shell + main area. Refresh — theme persists (next-themes localStorage).
+- [ ] Set system to dark (macOS System Settings → Appearance), open a fresh incognito window — app boots in dark by default.
+
+### Realtime smoke (§G.1) — requires two browsers
+- [ ] In browser A (admin), `curl` an action item create against `POST /workspaces/:id/action-items` (or use any other authenticated client). In browser B's DevTools console: `socket.io-client` messages show `action-item:created` arriving. (UI doesn't render this yet — but the wire is open.)
+
+### Negative checks
+- [ ] `/api/docs` → Swagger UI loads with all 14 tag groups + 40+ paths. Search for `audit-logs`. Click "Try it out". Maps to: J.3.
+- [ ] `/workspaces/<other-user-id>` → 403 (server-side `requireWorkspaceMember`). Maps to: K permissions matrix.
+- [ ] Invite an email that's already a member → 409. Demote yourself when you're the only admin → 409. Maps to: C.2 + C.3 guards.
 
 ---
 

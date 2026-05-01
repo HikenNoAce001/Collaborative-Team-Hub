@@ -49,8 +49,8 @@ flowchart LR
     P15 --> P21 --> P22 --> P23 --> P24 --> P25
     P25 --> P26 --> P27 --> P28 --> P29 --> P210
 
-    class P01,P02,P03,P04,P06,P11,P12,P13,P14,P15,P21,P22,P23,P25,P27 done
-    class P05,P24,P26,P28,P29,P210 pending
+    class P01,P02,P03,P04,P06,P11,P12,P13,P14,P15,P21,P22,P23,P25,P27,P05 done
+    class P24,P26,P28,P29,P210 pending
 ```
 
 ---
@@ -348,6 +348,40 @@ The new `prisma-client` provider is TS-only (internally named `PrismaClientTs`) 
   - `GET /api/openapi.json` — raw spec (for client codegen or programmatic consumers).
 
 **Why hand-rolled over `swagger-jsdoc`:** scattering 200+ lines of `@swagger` JSDoc across 14 router files would balloon every router file by 3–5×; centralizing the spec keeps router files focused on routing. Trade-off: spec drift if routes change and the spec isn't updated — mitigated by the route docs being narrative ("status changes auto-create a status_change update row"), so they shouldn't need touching for routine schema additions.
+
+---
+
+## Phase 0.5 — Web skeleton + auth pages + workspaces dashboard ✅
+
+**Built across two sessions** — initial scaffold by a separate agent (GLM), then a fix-up + workspace-shell pass by Claude.
+
+**Commits:**
+- `c946c20` — `feat(web): scaffold next 16 app router with tailwind 4, providers, and server-side auth gate`
+- `4a5cedb` — `fix(web): unwrap api response envelopes on workspaces and auth/me`
+- `3cbaca8` — `feat(web): scaffold workspace shell with sidebar, presence, and feature route stubs`
+
+**Files written:**
+- `apps/web/package.json` — full FE deps installed (Next 16.2.4, React 19.2.5, Tailwind 4.2.4, TanStack Query 5, Zustand 5, axios, RHF + zod resolver, Tiptap 3, dnd-kit 6, recharts 3, sonner 2, lucide-react 1.14, cmdk 1, next-themes 0.4, socket.io-client 4.8, cva, clsx, tailwind-merge, date-fns 3).
+- `next.config.mjs` — `reactStrictMode + transpilePackages: ['@team-hub/schemas']`. `postcss.config.mjs` — `@tailwindcss/postcss` plugin (v4 — no `tailwind.config.js`). `jsconfig.json` — `paths: { "@/*": ["./src/*"] }` (no `baseUrl`; v4+ resolves relative to the config file). `eslint.config.mjs` re-exports `@team-hub/eslint-config/next`.
+- `src/app/layout.jsx` — root layout with `metadataBase`, title template, `suppressHydrationWarning` on `<html>`. `providers.jsx` (TanStack QueryClient + ThemeProvider + Sonner Toaster). `globals.css` — `@import "tailwindcss"` + `@custom-variant dark (&:where(.dark, .dark *))` + `@theme {}` token block (color/radius/font CSS variables) + `.dark { ... }` override block.
+- `src/proxy.js` — Next 16 file convention (was `middleware.js` pre-16). Cheap cookie-presence check redirects unauthenticated requests on `(app)` routes to `/login?next=…`. Always lets `/_next`, `/api`, `/login`, `/register` through.
+- `src/app/(app)/layout.jsx` — **Server Component** auth gate: reads `at` from `cookies()`, fetches `/auth/me` server-side with the cookie forwarded, `redirect('/login')` on failure. No flash of protected UI.
+- `src/lib/api.js` — axios with `withCredentials`, single 401 → `/auth/refresh` → retry interceptor with a request queue. `socket.js` — lazy `getSocket()` singleton + `useSocket(workspaceId)` hook with auth via cookie. `cn.js` — `clsx` + `tailwind-merge`.
+- `src/stores/useWorkspaceStore.js` — Zustand `persist({ name: 'team-hub-workspace' })`.
+- `src/app/(auth)/{login,register}/page.jsx` — RHF + `zodResolver(loginSchema|registerSchema)` from `@team-hub/schemas`. Posts to `/auth/{login,register}` with cookies; pushes to `/workspaces` on success.
+- `src/app/(app)/workspaces/page.jsx` — workspace list with accent dot + role pill, empty state, logout. `workspaces/new/page.jsx` — create form (name + description + accent color picker).
+- `src/app/(app)/w/[id]/layout.jsx` — server-fetches workspace + members, hands them to a client `Shell`. `page.jsx` redirects to `/announcements`. Six placeholder pages for `announcements/`, `goals/`, `action-items/`, `analytics/`, `members/`, `audit/` — each renders the API endpoints + acceptance criteria from `requirements.md` so the next agent has the spec inline.
+- `src/components/workspace/Shell.jsx` — client component: sidebar with workspace accent dot + nav (admin sees Audit Log; everyone else sees the 5 base routes), live-presence member list (subscribes to `presence:update`), topbar with theme toggle + notification bell + logout. `ThemeToggle.jsx` — `next-themes` toggle that hydrates without flicker.
+
+**Bugs fixed during the integration pass:**
+1. **Dark-mode variant was broken** — `globals.css` had `@custom-variant dark (&:is(.dark *))` which only matches *descendants* of `.dark`. Since `next-themes` puts the class on `<html>` directly, dark utilities silently no-op'd. Fixed to `(&:where(.dark, .dark *))` per [tailwindcss.com/docs/dark-mode](https://tailwindcss.com/docs/dark-mode).
+2. **ESLint config import path** — `@team-hub/eslint-config/next.js` didn't match the package's `exports` map (`./next` only). `pnpm lint` errored out of the box. Fixed to `@team-hub/eslint-config/next`.
+3. **Response-shape mismatches** — `/auth/me` returns `{user: {...}}` and `/workspaces` returns `{workspaces: [...]}`, but the page accessed `data.name` / `data.data` directly. Result: "Welcome," with empty name and the workspace list never rendering. Fixed by unwrapping in the queryFn.
+4. **Wrong file extension on eslint config** — `.js` with `import`/`export` syntax in a package without `"type": "module"` is undefined territory in Node's resolver. Renamed to `eslint.config.mjs` per Next 16 docs.
+5. **Redundant `--turbopack` flag** — Turbopack is the default in Next 16. Dropped from the dev script.
+6. **Auth gate flashed protected UI** — original layout was a `'use client'` component running `useEffect(() => api.get('/auth/me'))` with a spinner during the in-flight check. Converted to a Server Component using `cookies()` + `fetch()` + `redirect()` — gate runs before any HTML is sent.
+
+**Verified manually:** registration → cookie set → redirect to /workspaces → workspace card with accent dot + role pill → click → workspace shell with sidebar nav + theme toggle + active route highlighting → unauthenticated `/w/<id>/...` deep links bounce to `/login?next=…` (proxy) → invalid `at` cookie also bounces (server layout). Lint clean. Build clean (12 routes registered).
 
 ---
 
