@@ -27,6 +27,10 @@ import {
 } from './modules/announcements/router.js';
 import { workspaceAuditRouter } from './modules/audit/router.js';
 import { notificationsRouter } from './modules/notifications/router.js';
+import {
+  workspaceAnalyticsRouter,
+  workspaceExportRouter,
+} from './modules/analytics/router.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const pkg = JSON.parse(readFileSync(resolve(__dirname, '..', 'package.json'), 'utf8'));
@@ -69,6 +73,8 @@ export function createApp() {
   app.use('/workspaces/:id/action-items', workspaceActionItemsRouter);
   app.use('/workspaces/:id/announcements', workspaceAnnouncementsRouter);
   app.use('/workspaces/:id/audit-logs', workspaceAuditRouter);
+  app.use('/workspaces/:id/analytics', workspaceAnalyticsRouter);
+  app.use('/workspaces/:id/export', workspaceExportRouter);
   app.use('/workspaces', workspacesRouter);
   app.use('/invitations', invitationsRouter);
   app.use('/goals', goalsRouter);
