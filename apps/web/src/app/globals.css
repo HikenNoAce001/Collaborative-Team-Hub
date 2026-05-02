@@ -255,14 +255,13 @@ html[data-app-ready="true"] .preloader {
    the new page's data fetch, so the user doesn't see "fade ends, then content
    snaps in". Animates transform + opacity only (cheap on the compositor). */
 @keyframes page-fade-in {
-  0%   { opacity: 0; transform: translate3d(0, 10px, 0) scale(0.99); }
-  55%  { opacity: 1; }
-  100% { opacity: 1; transform: translate3d(0, 0, 0) scale(1); }
+  0%   { opacity: 0; transform: translate3d(0, 8px, 0); }
+  100% { opacity: 1; transform: translate3d(0, 0, 0); }
 }
 .page-transition {
-  /* Starts mid-curtain-retract so content "grows" into view as the curtain
-     pulls away. animation-fill-mode: both keeps opacity:0 before delay fires. */
-  animation: page-fade-in 320ms cubic-bezier(0.22, 1, 0.36, 1) 120ms both;
+  /* Starts the moment the overlay begins fading — content rises while the
+     dissolve lifts, so both motions overlap for a seamless reveal. */
+  animation: page-fade-in 360ms cubic-bezier(0.22, 1, 0.36, 1) both;
   will-change: transform, opacity;
 }
 @media (prefers-reduced-motion: reduce) {
