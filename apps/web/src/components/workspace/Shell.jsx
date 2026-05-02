@@ -4,7 +4,6 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useMemo, useState } from 'react';
 import {
-  Bell,
   CheckSquare,
   ClipboardList,
   LayoutDashboard,
@@ -17,7 +16,10 @@ import {
 import api from '@/lib/api';
 import { cn } from '@/lib/cn';
 import { useSocket } from '@/lib/socket';
+import { useWorkspaceStore } from '@/stores/useWorkspaceStore';
 import ThemeToggle from '@/components/ThemeToggle';
+import NotificationBell from '@/components/workspace/NotificationBell';
+import CommandPalette from '@/components/CommandPalette';
 import { WorkspaceProvider } from '@/components/workspace/WorkspaceContext';
 
 const NAV = [
@@ -42,6 +44,11 @@ export default function Shell({ workspace, members, children }) {
   const router = useRouter();
   const { socket } = useSocket(workspace.id);
   const [online, setOnline] = useState(/** @type {Set<string>} */ (new Set()));
+  const setCurrentWorkspace = useWorkspaceStore((s) => s.setCurrentWorkspace);
+
+  useEffect(() => {
+    setCurrentWorkspace(workspace.id);
+  }, [workspace.id, setCurrentWorkspace]);
 
   useEffect(() => {
     if (!socket) return undefined;
@@ -140,13 +147,7 @@ export default function Shell({ workspace, members, children }) {
               ← All workspaces
             </Link>
             <div className="flex items-center gap-2">
-              <button
-                type="button"
-                aria-label="Notifications"
-                className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-input text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
-              >
-                <Bell className="h-4 w-4" />
-              </button>
+              <NotificationBell />
               <ThemeToggle />
               <button
                 type="button"
@@ -162,6 +163,7 @@ export default function Shell({ workspace, members, children }) {
           <main className="flex-1 px-4 py-6 md:px-8">{children}</main>
         </div>
       </div>
+      <CommandPalette />
     </WorkspaceProvider>
   );
 }
