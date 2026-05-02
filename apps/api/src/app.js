@@ -13,6 +13,7 @@ import { openapiSpec } from './docs/openapi.js';
 
 import { env } from './env.js';
 import { logger } from './lib/logger.js';
+import { withRequestContext } from './lib/request-context.js';
 import { errorHandler, notFoundHandler } from './middleware/error.js';
 import { authRouter } from './modules/auth/router.js';
 import { usersRouter } from './modules/users/router.js';
@@ -48,6 +49,7 @@ export function createApp() {
   app.use(cors({ origin: env.CLIENT_URL, credentials: true }));
   app.use(express.json({ limit: '1mb' }));
   app.use(cookieParser());
+  app.use(withRequestContext);
   app.use(
     pinoHttp({
       logger,

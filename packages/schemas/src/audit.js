@@ -22,5 +22,7 @@ export const listAuditLogsQuery = z.object({
   entityType: EntityType.optional(),
   actorId: cuid.optional(),
   before: cuid.optional(), // cursor by AuditLog id
+  from: z.coerce.date().optional(),
+  to: z.coerce.date().optional(),
   pageSize: z.coerce.number().int().positive().max(100).default(50),
 });

@@ -1,9 +1,11 @@
 import { prisma } from '../../db.js';
+import { getRequestContext } from '../../lib/request-context.js';
 
 /**
  * Append an entry to the audit log. Pass a transaction client (`tx`) when the
  * mutation that produced this event runs inside one — the audit row commits or
- * rolls back together with the data change.
+ * rolls back together with the data change. Actor IP is pulled from
+ * AsyncLocalStorage so callers don't have to plumb req.ip through every service.
  *
  * @param {import('@prisma/client').PrismaClient | import('@prisma/client').Prisma.TransactionClient} db
  * @param {{
@@ -17,6 +19,7 @@ import { prisma } from '../../db.js';
  * }} entry
  */
 export function audit(db, entry) {
+  const { ip } = getRequestContext();
   return db.auditLog.create({
     data: {
       workspaceId: entry.workspaceId,
@@ -26,6 +29,7 @@ export function audit(db, entry) {
       entityId: entry.entityId,
       before: entry.before ?? undefined,
       after: entry.after ?? undefined,
+      ip: ip ?? undefined,
     },
   });
 }
@@ -38,15 +42,24 @@ const auditSelect = {
   entityId: true,
   before: true,
   after: true,
+  ip: true,
   createdAt: true,
   actor: { select: { id: true, name: true, email: true, avatarUrl: true } },
 };
 
-export async function listAuditLogs(workspaceId, { action, entityType, actorId, before, pageSize }) {
+export async function listAuditLogs(
+  workspaceId,
+  { action, entityType, actorId, before, from, to, pageSize },
+) {
   const where = { workspaceId };
   if (action) where.action = action;
   if (entityType) where.entityType = entityType;
   if (actorId) where.actorId = actorId;
+  if (from || to) {
+    where.createdAt = {};
+    if (from) where.createdAt.gte = from;
+    if (to) where.createdAt.lte = to;
+  }
 
   let cursorClause;
   if (before) {
@@ -54,7 +67,12 @@ export async function listAuditLogs(workspaceId, { action, entityType, actorId, 
       where: { id: before },
       select: { createdAt: true },
     });
-    if (cursor) cursorClause = { createdAt: { lt: cursor.createdAt } };
+    if (cursor) {
+      cursorClause = where.createdAt
+        ? { createdAt: { ...where.createdAt, lt: cursor.createdAt } }
+        : { createdAt: { lt: cursor.createdAt } };
+      delete where.createdAt;
+    }
   }
 
   const items = await prisma.auditLog.findMany({

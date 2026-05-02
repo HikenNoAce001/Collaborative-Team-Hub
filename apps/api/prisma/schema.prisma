@@ -265,6 +265,7 @@ model AuditLog {
   entityId    String
   before      Json?
   after       Json?
+  ip          String?
   createdAt   DateTime    @default(now())
 
   @@index([workspaceId, createdAt])

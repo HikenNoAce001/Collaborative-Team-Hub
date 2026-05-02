@@ -121,6 +121,7 @@ const AuditLog = {
     entityId: cuid,
     before: { type: 'object', nullable: true },
     after: { type: 'object', nullable: true },
+    ip: { type: 'string', nullable: true },
     createdAt: { type: 'string', format: 'date-time' },
   },
 };
@@ -618,12 +619,14 @@ export const openapiSpec = {
       parameters: [idParam('id', 'workspaceId')],
       get: {
         tags: ['Audit'],
-        summary: 'Cursor-paginated audit feed (admin only). Filter by action / entityType / actorId.',
+        summary: 'Cursor-paginated audit feed (admin only). Filter by action / entityType / actorId / from / to.',
         parameters: [
           { in: 'query', name: 'action', schema: { type: 'string' } },
           { in: 'query', name: 'entityType', schema: { type: 'string' } },
           { in: 'query', name: 'actorId', schema: cuid },
           { in: 'query', name: 'before', schema: cuid },
+          { in: 'query', name: 'from', schema: { type: 'string', format: 'date-time' } },
+          { in: 'query', name: 'to', schema: { type: 'string', format: 'date-time' } },
           { in: 'query', name: 'pageSize', schema: { type: 'integer', default: 50 } },
         ],
         responses: {
