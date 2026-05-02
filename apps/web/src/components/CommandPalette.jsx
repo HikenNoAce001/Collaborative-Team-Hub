@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Command } from 'cmdk';
+import * as Dialog from '@radix-ui/react-dialog';
 import { useTheme } from 'next-themes';
 import { useQuery } from '@tanstack/react-query';
 import {
@@ -34,9 +35,8 @@ const ICONS = {
 };
 
 /**
- * Global ⌘K palette. Mounted once at the (app) layout level so it's available
- * everywhere a logged-in user is. Actions are inferred from the current route +
- * the set of workspaces the user belongs to. Fuzzy search via cmdk's built-in.
+ * Global ⌘K palette. Opens via keyboard shortcut OR the custom event
+ * `open-command-palette` dispatched by the Shell's search trigger button.
  */
 export default function CommandPalette() {
   const router = useRouter();
@@ -51,7 +51,6 @@ export default function CommandPalette() {
     enabled: open,
   });
 
-  // ⌘K / Ctrl+K toggles the palette. Esc is handled by cmdk's Dialog.
   useEffect(() => {
     function onKey(e) {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
@@ -59,30 +58,27 @@ export default function CommandPalette() {
         setOpen((v) => !v);
       }
     }
+    function onCustom() { setOpen(true); }
     document.addEventListener('keydown', onKey);
-    return () => document.removeEventListener('keydown', onKey);
+    window.addEventListener('open-command-palette', onCustom);
+    return () => {
+      document.removeEventListener('keydown', onKey);
+      window.removeEventListener('open-command-palette', onCustom);
+    };
   }, []);
 
   function run(fn) {
     setOpen(false);
-    // Run after the dialog finishes closing so the focus restore happens cleanly.
     setTimeout(fn, 0);
   }
 
   const goWorkspaceRoute = (slug) => {
-    if (!currentWorkspaceId) {
-      router.push('/workspaces');
-      return;
-    }
+    if (!currentWorkspaceId) { router.push('/workspaces'); return; }
     router.push(`/w/${currentWorkspaceId}/${slug}`);
   };
 
   async function handleLogout() {
-    try {
-      await api.post('/auth/logout');
-    } finally {
-      router.push('/login');
-    }
+    try { await api.post('/auth/logout'); } finally { router.push('/login'); }
   }
 
   const workspaces = workspacesQuery.data ?? [];
@@ -95,6 +91,9 @@ export default function CommandPalette() {
       overlayClassName="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm"
       contentClassName="fixed left-1/2 top-[15vh] z-50 w-[min(32rem,calc(100vw-2rem))] -translate-x-1/2 overflow-hidden rounded-xl border bg-popover text-popover-foreground shadow-elevated focus:outline-none"
     >
+      {/* Required by Radix Dialog for screen-reader accessibility */}
+      <Dialog.Title className="sr-only">Command palette</Dialog.Title>
+
       <Command.Input
         placeholder="Type a command or search…"
         className="w-full border-b bg-transparent px-4 py-3 text-sm outline-none placeholder:text-muted-foreground"
@@ -106,10 +105,7 @@ export default function CommandPalette() {
         </Command.Empty>
 
         {currentWorkspaceId && (
-          <Command.Group
-            heading="Navigate"
-            className={GROUP_CLS}
-          >
+          <Command.Group heading="Navigate" className={GROUP_CLS}>
             {[
               { slug: 'announcements', label: 'Go to Announcements' },
               { slug: 'goals', label: 'Go to Goals' },
@@ -130,10 +126,7 @@ export default function CommandPalette() {
         )}
 
         {currentWorkspaceId && (
-          <Command.Group
-            heading="Create"
-            className={GROUP_CLS}
-          >
+          <Command.Group heading="Create" className={GROUP_CLS}>
             <Item onSelect={() => run(() => goWorkspaceRoute('goals'))}>
               <Plus className="h-3.5 w-3.5" />
               Create goal
@@ -150,20 +143,14 @@ export default function CommandPalette() {
         )}
 
         {workspaces.length > 1 && (
-          <Command.Group
-            heading="Switch workspace"
-            className={GROUP_CLS}
-          >
+          <Command.Group heading="Switch workspace" className={GROUP_CLS}>
             {workspaces.map((w) => (
               <Item
                 key={w.id}
                 onSelect={() => run(() => router.push(`/w/${w.id}`))}
                 value={`switch ${w.name}`}
               >
-                <span
-                  className="h-2 w-2 shrink-0 rounded-full"
-                  style={{ backgroundColor: w.accentColor }}
-                />
+                <span className="h-2 w-2 shrink-0 rounded-full" style={{ backgroundColor: w.accentColor }} />
                 <span className="truncate">{w.name}</span>
                 {w.id === currentWorkspaceId && (
                   <span className="ml-auto text-[10px] text-muted-foreground">current</span>
@@ -173,10 +160,7 @@ export default function CommandPalette() {
           </Command.Group>
         )}
 
-        <Command.Group
-          heading="Preferences"
-          className={GROUP_CLS}
-        >
+        <Command.Group heading="Preferences" className={GROUP_CLS}>
           <Item
             onSelect={() => run(() => setTheme(theme === 'dark' ? 'light' : 'dark'))}
             value="toggle theme dark light"
@@ -191,10 +175,10 @@ export default function CommandPalette() {
         </Command.Group>
       </Command.List>
 
-      <div className="border-t bg-muted/30 px-3 py-1.5 text-[10px] text-muted-foreground">
-        <span className="rounded border bg-card px-1.5 py-0.5 font-mono">⌘K</span> to toggle ·
-        <span className="mx-1 rounded border bg-card px-1.5 py-0.5 font-mono">↵</span> to run ·
-        <span className="rounded border bg-card px-1.5 py-0.5 font-mono">esc</span> to close
+      <div className="border-t bg-muted/30 px-3 py-1.5 text-[10px] text-muted-foreground flex items-center gap-2">
+        <span className="rounded border bg-card px-1.5 py-0.5 font-mono">⌘K</span> toggle ·
+        <span className="rounded border bg-card px-1.5 py-0.5 font-mono">↵</span> run ·
+        <span className="rounded border bg-card px-1.5 py-0.5 font-mono">esc</span> close
       </div>
     </Command.Dialog>
   );
@@ -205,7 +189,7 @@ function Item({ children, onSelect, value }) {
     <Command.Item
       onSelect={onSelect}
       value={value}
-      className="flex cursor-pointer items-center gap-2 rounded-sm px-2 py-1.5 text-sm aria-selected:bg-accent aria-selected:text-accent-foreground"
+      className="flex cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 text-sm aria-selected:bg-accent aria-selected:text-accent-foreground"
     >
       {children}
     </Command.Item>
