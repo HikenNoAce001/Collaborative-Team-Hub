@@ -27,7 +27,25 @@ export async function listAnnouncements(workspaceId, { page, pageSize }) {
     }),
     prisma.announcement.count({ where: { workspaceId } }),
   ]);
-  return { data, meta: { page, pageSize, total } };
+
+  // Per-emoji breakdown in a single groupBy so the list view can render
+  // chips like {👍: 3, ❤️: 1} without a per-row detail fetch.
+  const breakdown =
+    data.length === 0
+      ? []
+      : await prisma.reaction.groupBy({
+          by: ['announcementId', 'emoji'],
+          where: { announcementId: { in: data.map((a) => a.id) } },
+          _count: { _all: true },
+        });
+  /** @type {Record<string, Record<string, number>>} */
+  const byAnnouncement = {};
+  for (const row of breakdown) {
+    (byAnnouncement[row.announcementId] ??= {})[row.emoji] = row._count._all;
+  }
+  const enriched = data.map((a) => ({ ...a, reactionsByEmoji: byAnnouncement[a.id] ?? {} }));
+
+  return { data: enriched, meta: { page, pageSize, total } };
 }
 
 export async function createAnnouncement(workspaceId, body, authorId) {
