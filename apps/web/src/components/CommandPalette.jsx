@@ -93,7 +93,7 @@ export default function CommandPalette() {
       onOpenChange={setOpen}
       label="Command palette"
       overlayClassName="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm"
-      contentClassName="fixed left-1/2 top-[15vh] z-50 w-[min(32rem,calc(100vw-2rem))] -translate-x-1/2 overflow-hidden rounded-lg border bg-popover text-popover-foreground shadow-2xl focus:outline-none"
+      contentClassName="fixed left-1/2 top-[15vh] z-50 w-[min(32rem,calc(100vw-2rem))] -translate-x-1/2 overflow-hidden rounded-xl border bg-popover text-popover-foreground shadow-elevated focus:outline-none"
     >
       <Command.Input
         placeholder="Type a command or search…"

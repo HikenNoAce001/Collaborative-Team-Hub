@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useAutoAnimate } from '@formkit/auto-animate/react';
 import { toast } from 'sonner';
 import {
   CheckCircle2,
@@ -446,6 +447,7 @@ function MilestoneDialog({ open, onClose, goalId }) {
 function ActivityFeed({ goalId, updatesQuery }) {
   const qc = useQueryClient();
   const [composing, setComposing] = useState('');
+  const [feedRef] = useAutoAnimate();
 
   const post = useMutation({
     mutationFn: (body) => api.post(`/goals/${goalId}/updates`, { body }).then((r) => r.data.update),
@@ -502,7 +504,7 @@ function ActivityFeed({ goalId, updatesQuery }) {
       ) : updates.length === 0 ? (
         <p className="text-xs text-muted-foreground">No activity yet.</p>
       ) : (
-        <ul className="space-y-2">
+        <ul ref={feedRef} className="space-y-2">
           {updates.map((u) => (
             <li key={u.id} className="rounded-md border bg-card p-3 text-sm">
               <p className="text-xs text-muted-foreground">

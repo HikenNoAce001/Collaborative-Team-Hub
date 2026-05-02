@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useAutoAnimate } from '@formkit/auto-animate/react';
 import { ChevronDown, ChevronRight, Download, ScrollText } from 'lucide-react';
 import { ENTITY_TYPES } from '@team-hub/schemas';
 import { AuditAction } from '@team-hub/schemas';
@@ -57,6 +58,7 @@ export default function AuditView() {
   const { workspace } = useWorkspace();
   const qc = useQueryClient();
   const [filters, setFilters] = useState({ action: '', entityType: '', actorId: '' });
+  const [logsRef] = useAutoAnimate();
 
   const membersQuery = useQuery({
     queryKey: ['members', workspace.id],
@@ -183,7 +185,7 @@ export default function AuditView() {
       ) : (
         <Card>
           <CardContent className="p-0 sm:p-0">
-            <ul className="divide-y">
+            <ul ref={logsRef} className="divide-y">
               {logs.map((log) => (
                 <AuditRow key={log.id} log={log} />
               ))}

@@ -42,16 +42,23 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center px-4">
+    <div className="relative flex min-h-screen items-center justify-center px-4">
       <div className="w-full max-w-sm space-y-6">
         <div className="text-center">
-          <h1 className="text-2xl font-bold tracking-tight">Team Hub</h1>
+          <div
+            aria-hidden
+            className="mx-auto mb-3 h-11 w-11 rounded-xl bg-gradient-primary shadow-elevated"
+          />
+          <h1 className="text-gradient-primary text-3xl font-bold tracking-tight">Team Hub</h1>
           <p className="mt-1 text-sm text-muted-foreground">
             Sign in to your workspace
           </p>
         </div>
 
-        <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+        <form
+          onSubmit={handleSubmit(onSubmit)}
+          className="space-y-4 rounded-xl border bg-card/85 p-6 shadow-elevated backdrop-blur"
+        >
           {serverError && (
             <div className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">
               {serverError}

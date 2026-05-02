@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
+import { useAutoAnimate } from '@formkit/auto-animate/react';
 import { toast } from 'sonner';
 import {
   AtSign,
@@ -54,6 +55,7 @@ export default function AnnouncementsView() {
   const { socket } = useSocket(workspace.id);
   const [composerOpen, setComposerOpen] = useState(false);
   const [expandedId, setExpandedId] = useState(/** @type {string|null} */ (null));
+  const [feedRef] = useAutoAnimate();
 
   const listQuery = useQuery({
     queryKey: ['announcements', workspace.id],
@@ -150,7 +152,7 @@ export default function AnnouncementsView() {
           }
         />
       ) : (
-        <ul className="space-y-3">
+        <ul ref={feedRef} className="space-y-3">
           {sorted.map((announcement) => (
             <AnnouncementCard
               key={announcement.id}
@@ -551,6 +553,7 @@ function CommentsSection({ announcement }) {
   const { workspace } = useWorkspace();
   const qc = useQueryClient();
   const { socket } = useSocket(workspace.id);
+  const [threadRef] = useAutoAnimate();
 
   const membersQuery = useQuery({
     queryKey: ['members', workspace.id],
@@ -612,7 +615,7 @@ function CommentsSection({ announcement }) {
       ) : comments.length === 0 ? (
         <p className="text-xs text-muted-foreground">No comments yet.</p>
       ) : (
-        <ul className="space-y-2.5">
+        <ul ref={threadRef} className="space-y-2.5">
           {comments.map((c) => (
             <li key={c.id} className="flex items-start gap-2.5">
               <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-muted text-xs font-medium uppercase">

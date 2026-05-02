@@ -59,7 +59,7 @@ export default function Dialog({
       />
       <div
         className={cn(
-          'relative z-10 w-full rounded-lg border bg-card text-card-foreground shadow-lg',
+          'relative z-10 w-full rounded-xl border bg-card text-card-foreground shadow-elevated',
           widthClassName,
         )}
       >

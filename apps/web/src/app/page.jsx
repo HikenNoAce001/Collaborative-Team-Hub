@@ -1,5 +1,11 @@
-import { redirect } from 'next/navigation';
+import LandingPage from '@/features/landing/LandingPage';
+import AuroraBackground from '@/components/AuroraBackground';
 
 export default function Home() {
-  redirect('/login');
+  return (
+    <>
+      <AuroraBackground />
+      <LandingPage />
+    </>
+  );
 }

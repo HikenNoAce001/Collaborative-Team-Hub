@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useAutoAnimate } from '@formkit/auto-animate/react';
 import { toast } from 'sonner';
 import { Bell, Check, CheckCheck } from 'lucide-react';
 
@@ -124,6 +125,7 @@ export default function NotificationBell() {
 
   const items = listQuery.data?.data ?? [];
   const unreadCount = listQuery.data?.meta?.unreadCount ?? 0;
+  const [listRef] = useAutoAnimate();
 
   function navigateTo(n) {
     const wsId = n.payload?.workspaceId;
@@ -156,7 +158,7 @@ export default function NotificationBell() {
           ref={panelRef}
           role="dialog"
           aria-label="Notifications"
-          className="absolute right-0 top-full z-50 mt-1 w-80 overflow-hidden rounded-md border bg-popover text-popover-foreground shadow-lg"
+          className="absolute right-0 top-full z-50 mt-1 w-80 overflow-hidden rounded-xl border bg-popover text-popover-foreground shadow-elevated"
         >
           <div className="flex items-center justify-between border-b px-3 py-2 text-xs">
             <span className="font-medium">
@@ -173,7 +175,7 @@ export default function NotificationBell() {
             </button>
           </div>
 
-          <ul className="max-h-96 overflow-y-auto">
+          <ul ref={listRef} className="max-h-96 overflow-y-auto">
             {listQuery.isLoading ? (
               <li className="px-4 py-6 text-center text-xs text-muted-foreground">Loading…</li>
             ) : items.length === 0 ? (
