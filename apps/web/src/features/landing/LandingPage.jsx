@@ -125,7 +125,7 @@ export default function LandingPage() {
           <Link
             data-anim="cta"
             href="/login"
-            className="inline-flex h-11 items-center gap-2 rounded-xl border bg-card/80 px-5 text-sm font-semibold backdrop-blur transition-colors hover:bg-accent hover:text-accent-foreground"
+            className="inline-flex h-11 items-center gap-2 rounded-xl border bg-card/95 px-5 text-sm font-semibold transition-colors hover:bg-accent hover:text-accent-foreground"
           >
             Sign in
           </Link>
@@ -136,7 +136,7 @@ export default function LandingPage() {
             <span
               key={label}
               data-anim="highlight"
-              className="inline-flex items-center gap-1.5 rounded-full border bg-card/70 px-3 py-1 text-xs font-medium backdrop-blur"
+              className="inline-flex items-center gap-1.5 rounded-full border bg-card/95 px-3 py-1 text-xs font-medium"
             >
               <Icon className="h-3 w-3 text-primary" />
               {label}
@@ -150,7 +150,7 @@ export default function LandingPage() {
           <div
             key={title}
             data-anim="feature"
-            className="group rounded-xl border bg-card/70 p-4 shadow-soft backdrop-blur transition-all hover:-translate-y-0.5 hover:shadow-elevated"
+            className="group rounded-xl border bg-card/95 p-4 shadow-soft transition-all hover:-translate-y-0.5 hover:shadow-elevated"
           >
             <div className="inline-flex h-9 w-9 items-center justify-center rounded-lg bg-gradient-primary text-white shadow-soft">
               <Icon className="h-4 w-4" />

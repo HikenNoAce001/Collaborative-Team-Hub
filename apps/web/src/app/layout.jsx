@@ -1,6 +1,7 @@
 import './globals.css';
 import Providers from './providers';
 import RouteProgress from '@/components/RouteProgress';
+import PageTransition from '@/components/PageTransition';
 
 const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? 'http://localhost:3000';
 
@@ -47,6 +48,7 @@ export default function RootLayout({ children }) {
         />
         <Providers>
           <RouteProgress />
+          <PageTransition />
           {children}
         </Providers>
       </body>
