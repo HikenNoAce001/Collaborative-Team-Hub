@@ -3,10 +3,14 @@ import { isProd, env } from '../env.js';
 const ACCESS_MAX_AGE_MS = 15 * 60 * 1000;
 const REFRESH_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000;
 
+// On Railway the web and api services live on different *.up.railway.app
+// subdomains, so the auth cookies are cross-site. Browsers only forward
+// cross-site cookies when SameSite=None AND Secure=true. In dev (same-origin
+// localhost) we keep SameSite=Lax for CSRF defense-in-depth.
 const baseOpts = {
   httpOnly: true,
   secure: isProd,
-  sameSite: 'lax',
+  sameSite: isProd ? 'none' : 'lax',
   ...(env.COOKIE_DOMAIN ? { domain: env.COOKIE_DOMAIN } : {}),
 };
 
