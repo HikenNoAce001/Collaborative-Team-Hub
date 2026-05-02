@@ -159,6 +159,97 @@
   .aurora-blob { animation: none !important; }
 }
 
+/* ── Smooth scroll for in-page anchors (landing nav, etc.) ──────────────── */
+html {
+  scroll-behavior: smooth;
+  scroll-padding-top: 5rem;
+}
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+}
+
+/* ── Initial-load preloader ───────────────────────────────────────────────
+   Inlined into <body> in app/layout.jsx so it paints before any React JS
+   runs. The shim script flips a `data-app-ready` attr on <html> once the
+   first Providers tree mounts; this CSS hides + fades the preloader as soon
+   as that attr lands. */
+.preloader {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1.25rem;
+  background-color: var(--color-background);
+  transition: opacity 320ms ease-out, visibility 0s linear 320ms;
+}
+.preloader__mark {
+  width: 3rem;
+  height: 3rem;
+  border-radius: 0.875rem;
+  background-image: var(--gradient-primary);
+  box-shadow: var(--shadow-elevated);
+  animation: preloader-pulse 1.6s ease-in-out infinite;
+}
+.preloader__bar {
+  position: relative;
+  width: min(14rem, 60vw);
+  height: 2px;
+  border-radius: 9999px;
+  background-color: var(--color-muted);
+  overflow: hidden;
+}
+.preloader__bar::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  width: 40%;
+  border-radius: inherit;
+  background-image: var(--gradient-primary);
+  animation: preloader-slide 1.2s cubic-bezier(0.65, 0, 0.35, 1) infinite;
+}
+.preloader__label {
+  font-size: 0.75rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--color-muted-foreground);
+}
+
+@keyframes preloader-pulse {
+  0%, 100% { transform: scale(1); opacity: 1; }
+  50%      { transform: scale(0.92); opacity: 0.85; }
+}
+@keyframes preloader-slide {
+  0%   { left: -40%; }
+  100% { left: 100%; }
+}
+
+html[data-app-ready="true"] .preloader {
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+}
+
+/* ── Top route progress bar ─────────────────────────────────────────────── */
+.route-progress {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  z-index: 60;
+  pointer-events: none;
+  background-image: var(--gradient-primary);
+  transform-origin: left;
+  transition: transform 240ms cubic-bezier(0.22, 1, 0.36, 1), opacity 240ms ease-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .preloader__mark, .preloader__bar::after { animation: none; }
+}
+
 /* ── Page transition (template.jsx wrappers) ──────────────────────────────
    Soft fade + lift + subtle settle-in. 480ms is long enough to overlap with
    the new page's data fetch, so the user doesn't see "fade ends, then content
