@@ -12,18 +12,26 @@ export const metadata = {
   applicationName: 'Team Hub',
 };
 
-// Inline boot script — runs synchronously before React hydrates so we can
-// flip <html data-app-ready="true"> the moment the first frame is painted,
-// fading the preloader without waiting for the full app bundle.
+// Inline boot script — runs synchronously before React hydrates.
+// Records the script start time (t0) and enforces a minimum display of
+// MIN_MS so the bunny completes at least one full hop cycle before fading.
+// On slow connections the natural load time keeps the preloader visible
+// longer — MIN_MS only adds wait when the page loads faster than that.
 const PRELOADER_BOOT = `
   (function(){
-    var ready = function(){
+    var t0 = Date.now();
+    var MIN_MS = 1100;
+    var hide = function(){
       requestAnimationFrame(function(){
         document.documentElement.setAttribute('data-app-ready', 'true');
       });
     };
+    var ready = function(){
+      var remaining = MIN_MS - (Date.now() - t0);
+      if (remaining > 0) { setTimeout(hide, remaining); } else { hide(); }
+    };
     if (document.readyState === 'complete' || document.readyState === 'interactive') {
-      setTimeout(ready, 60);
+      ready();
     } else {
       window.addEventListener('DOMContentLoaded', ready);
     }
