@@ -5,7 +5,7 @@ RUN npm install -g pnpm@9.12.1
 
 WORKDIR /app
 
-COPY pnpm-lock.yaml pnpm-workspace.yaml package.json ./
+COPY pnpm-lock.yaml pnpm-workspace.yaml package.json .npmrc ./
 COPY apps/api/package.json ./apps/api/
 COPY packages/schemas/package.json ./packages/schemas/
 COPY packages/eslint-config/package.json ./packages/eslint-config/
