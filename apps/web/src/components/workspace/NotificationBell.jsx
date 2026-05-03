@@ -131,10 +131,17 @@ export default function NotificationBell() {
     setOpen(false);
     if (n.kind === 'mention') {
       const announcementId = n.payload?.announcementId;
-      const target = announcementId
-        ? `/w/${workspace.id}/announcements#${announcementId}`
-        : `/w/${workspace.id}/announcements`;
-      router.push(target);
+      if (announcementId) {
+        const domId = `ann-${announcementId}`;
+        const el = document.getElementById(domId);
+        if (el) {
+          el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+          return;
+        }
+        router.push(`/w/${workspace.id}/announcements#${domId}`);
+        return;
+      }
+      router.push(`/w/${workspace.id}/announcements`);
     }
   }
 

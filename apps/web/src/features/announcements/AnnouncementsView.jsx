@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -112,6 +112,14 @@ export default function AnnouncementsView() {
       }),
     [items],
   );
+
+  // Scroll to a specific announcement when navigating from a notification link.
+  useEffect(() => {
+    const hash = window.location.hash.slice(1);
+    if (!hash) return;
+    const el = document.getElementById(hash);
+    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }, [sorted]);
 
   return (
     <div className="mx-auto max-w-3xl space-y-5">
@@ -350,7 +358,7 @@ function AnnouncementCard({ announcement, expanded, onToggle }) {
   }, [detail, me]);
 
   return (
-    <Card className={cn(announcement.pinned && 'border-primary/40')}>
+    <Card id={`ann-${announcement.id}`} className={cn(announcement.pinned && 'border-primary/40')}>
       <div className="flex items-start gap-3 p-4 sm:p-5">
         <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-muted text-sm font-medium uppercase">
           {announcement.author?.name?.[0] ?? '?'}
@@ -657,6 +665,10 @@ function CommentInput({ announcementId, members }) {
   const [body, setBody] = useState('');
   const [mentionIds, setMentionIds] = useState(/** @type {Set<string>} */ (new Set()));
   const [pickerOpen, setPickerOpen] = useState(false);
+  const textareaRef = useRef(null);
+  const [mentionQuery, setMentionQuery] = useState('');
+  const [mentionAnchor, setMentionAnchor] = useState(/** @type {number|null} */ (null));
+  const [inlineMentionOpen, setInlineMentionOpen] = useState(false);
 
   const candidates = useMemo(
     () => members.filter((m) => m.user.id !== me?.id),
@@ -707,6 +719,42 @@ function CommentInput({ announcementId, members }) {
     .filter((m) => mentionIds.has(m.user.id))
     .map((m) => m.user.name);
 
+  const filteredForInline = useMemo(
+    () => candidates.filter((m) =>
+      m.user.name.toLowerCase().includes(mentionQuery.toLowerCase())
+    ),
+    [candidates, mentionQuery],
+  );
+
+  function handleBodyChange(e) {
+    const val = e.target.value;
+    const cursor = e.target.selectionStart;
+    setBody(val);
+    const textBeforeCursor = val.slice(0, cursor);
+    const match = textBeforeCursor.match(/@([^\s@]*)$/);
+    if (match) {
+      setMentionQuery(match[1]);
+      setMentionAnchor(cursor - match[0].length);
+      setInlineMentionOpen(true);
+    } else {
+      setInlineMentionOpen(false);
+      setMentionQuery('');
+      setMentionAnchor(null);
+    }
+  }
+
+  function selectInlineMention(member) {
+    if (mentionAnchor === null) return;
+    const cursor = textareaRef.current?.selectionStart ?? body.length;
+    const newBody = body.slice(0, mentionAnchor) + `@${member.user.name} ` + body.slice(cursor);
+    setBody(newBody);
+    if (!mentionIds.has(member.user.id)) toggleMention(member.user.id);
+    setInlineMentionOpen(false);
+    setMentionQuery('');
+    setMentionAnchor(null);
+    setTimeout(() => textareaRef.current?.focus(), 0);
+  }
+
   return (
     <form
       onSubmit={(e) => {
@@ -716,12 +764,41 @@ function CommentInput({ announcementId, members }) {
       }}
       className="space-y-2"
     >
-      <Textarea
-        value={body}
-        onChange={(e) => setBody(e.target.value)}
-        placeholder="Write a comment…"
-        rows={2}
-      />
+      <div className="relative">
+        <Textarea
+          ref={textareaRef}
+          value={body}
+          onChange={handleBodyChange}
+          onKeyDown={(e) => {
+            if (inlineMentionOpen && e.key === 'Escape') {
+              setInlineMentionOpen(false);
+              e.stopPropagation();
+            }
+          }}
+          placeholder="Write a comment… type @ to mention"
+          rows={2}
+        />
+        {inlineMentionOpen && filteredForInline.length > 0 && (
+          <div className="absolute bottom-full left-0 z-30 mb-1 w-56 overflow-hidden rounded-md border bg-popover shadow-elevated">
+            {filteredForInline.map((m) => (
+              <button
+                key={m.user.id}
+                type="button"
+                onMouseDown={(e) => {
+                  e.preventDefault();
+                  selectInlineMention(m);
+                }}
+                className="flex w-full items-center gap-2 px-3 py-1.5 text-sm hover:bg-accent"
+              >
+                <span className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-primary/15 text-[10px] font-semibold uppercase text-primary">
+                  {m.user.name[0]}
+                </span>
+                {m.user.name}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
       {mentionedNames.length > 0 && (
         <div className="flex flex-wrap items-center gap-1 text-xs">
           <span className="text-muted-foreground">Notifying:</span>
