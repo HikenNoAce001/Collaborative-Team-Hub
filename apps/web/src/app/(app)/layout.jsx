@@ -1,5 +1,6 @@
 import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
+import AuroraBackground from '@/components/AuroraBackground';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000';
 
@@ -32,5 +33,10 @@ async function loadCurrentUser() {
 export default async function AppLayout({ children }) {
   const user = await loadCurrentUser();
   if (!user) redirect('/login');
-  return <>{children}</>;
+  return (
+    <>
+      <AuroraBackground variant="app" />
+      {children}
+    </>
+  );
 }

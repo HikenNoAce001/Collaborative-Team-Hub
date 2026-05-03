@@ -10,7 +10,7 @@ import ThemeToggle from '@/components/ThemeToggle';
 export default function AuthLayout({ children }) {
   return (
     <>
-      <AuroraBackground />
+      <AuroraBackground variant="default" />
       <div className="relative z-10 flex justify-end px-4 pt-4 sm:px-6">
         <ThemeToggle />
       </div>

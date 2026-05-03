@@ -146,13 +146,22 @@
 }
 .dark .aurora-blob { opacity: 0.32; filter: blur(96px); }
 
-.aurora-blob.b1 { top: -20vmax; left: -20vmax; background: radial-gradient(closest-side, #3b82f6, transparent 70%); animation: aurora-drift-1 22s ease-in-out infinite; }
-.aurora-blob.b2 { top: 30vmax; left: 35vmax; background: radial-gradient(closest-side, #06b6d4, transparent 70%); animation: aurora-drift-2 28s ease-in-out infinite; }
-.aurora-blob.b3 { top: -10vmax; left: 30vmax; background: radial-gradient(closest-side, #34d399, transparent 70%); animation: aurora-drift-3 26s ease-in-out infinite; }
+.aurora-default .aurora-blob.b1 { top: -20vmax; left: -20vmax; background: radial-gradient(closest-side, #3b82f6, transparent 70%); animation: aurora-drift-1 22s ease-in-out infinite; }
+.aurora-default .aurora-blob.b2 { top:  30vmax; left:  35vmax; background: radial-gradient(closest-side, #06b6d4, transparent 70%); animation: aurora-drift-2 28s ease-in-out infinite; }
+.aurora-default .aurora-blob.b3 { top: -10vmax; left:  30vmax; background: radial-gradient(closest-side, #34d399, transparent 70%); animation: aurora-drift-3 26s ease-in-out infinite; }
 
-.dark .aurora-blob.b1 { background: radial-gradient(closest-side, #1d4ed8, transparent 70%); }
-.dark .aurora-blob.b2 { background: radial-gradient(closest-side, #0891b2, transparent 70%); }
-.dark .aurora-blob.b3 { background: radial-gradient(closest-side, #059669, transparent 70%); }
+.dark .aurora-default .aurora-blob.b1 { background: radial-gradient(closest-side, #1d4ed8, transparent 70%); }
+.dark .aurora-default .aurora-blob.b2 { background: radial-gradient(closest-side, #0891b2, transparent 70%); }
+.dark .aurora-default .aurora-blob.b3 { background: radial-gradient(closest-side, #059669, transparent 70%); }
+
+/* App variant — warmer palette (violet / fuchsia / amber) for post-login pages */
+.aurora-app .aurora-blob.b1 { top: -20vmax; left: -20vmax; background: radial-gradient(closest-side, #8b5cf6, transparent 70%); animation: aurora-drift-1 22s ease-in-out infinite; }
+.aurora-app .aurora-blob.b2 { top:  30vmax; left:  35vmax; background: radial-gradient(closest-side, #ec4899, transparent 70%); animation: aurora-drift-2 28s ease-in-out infinite; }
+.aurora-app .aurora-blob.b3 { top: -10vmax; left:  30vmax; background: radial-gradient(closest-side, #f59e0b, transparent 70%); animation: aurora-drift-3 26s ease-in-out infinite; }
+
+.dark .aurora-app .aurora-blob.b1 { background: radial-gradient(closest-side, #6d28d9, transparent 70%); }
+.dark .aurora-app .aurora-blob.b2 { background: radial-gradient(closest-side, #be185d, transparent 70%); }
+.dark .aurora-app .aurora-blob.b3 { background: radial-gradient(closest-side, #b45309, transparent 70%); }
 
 @media (prefers-reduced-motion: reduce) {
   .aurora-blob { animation: none !important; }
