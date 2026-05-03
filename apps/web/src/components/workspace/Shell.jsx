@@ -95,7 +95,7 @@ export default function Shell({ workspace, members, children }) {
 
   return (
     <WorkspaceProvider value={ctxValue}>
-      <div className="relative flex min-h-screen bg-background/80">
+      <div className="relative flex min-h-screen">
 
         {/* ── Sidebar ───────────────────────────────────────────────── */}
         <aside className="hidden w-56 shrink-0 flex-col border-r bg-card md:flex">
