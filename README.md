@@ -418,37 +418,37 @@ The announcements list returns each post with a `reactionsByEmoji: { '🚀': 3, 
 
 ---
 
-## Environment Variables
+## Why pnpm?
 
-### `apps/api/.env`
+The repo is a pnpm 9 workspace, not npm or yarn. Three reasons:
 
-| Var | Description |
-| --- | --- |
-| `NODE_ENV` | `development` / `production` / `test` |
-| `PORT` | API listen port (default `4000`) |
-| `DATABASE_URL` | Postgres connection string |
-| `JWT_ACCESS_SECRET` | ≥ 32 hex chars |
-| `JWT_REFRESH_SECRET` | ≥ 32 hex chars (different from access) |
-| `ACCESS_TOKEN_TTL` | Default `15m` |
-| `REFRESH_TOKEN_TTL` | Default `30d` |
-| `CLIENT_URL` | Web origin (CORS allowlist + cookie scope) |
-| `COOKIE_DOMAIN` | Optional explicit cookie domain |
-| `CLOUDINARY_CLOUD_NAME` / `_API_KEY` / `_API_SECRET` | Avatar upload (optional) |
-| `RATE_LIMIT_AUTH_PER_MIN` | Default `10` |
-| `ENABLE_SWAGGER` | Mounts `/api/docs` (default `true`) |
+- **Disk-efficient.** pnpm hard-links every package version once into a global store and symlinks it into each project's `node_modules`. Reinstalls across this monorepo are seconds and the on-disk footprint is a fraction of npm's.
+- **Strictly correct by default.** Unlike npm's hoisted `node_modules`, pnpm only exposes a package to code that explicitly declares it. That caught two phantom-dependency bugs during development that would have exploded only in CI.
+- **First-class workspace support.** `pnpm --filter @team-hub/api db:migrate` runs the script in one workspace package without leaving the repo root. The build pipeline (`turbo run build`) leans on this for parallel, cached builds.
 
-### `apps/web/.env.local`
+The `.npmrc` at the repo root pins `public-hoist-pattern[]=*@prisma/*` so Prisma's generated client can resolve its own internal runtime — a quirk that pnpm's strict isolation would otherwise hide.
 
-| Var | Description |
-| --- | --- |
-| `NEXT_PUBLIC_API_URL` | API base URL (used at build time + by the rewrite proxy) |
-| `NEXT_PUBLIC_SOCKET_URL` | Same as API URL in standard setups |
-| `NEXT_PUBLIC_APP_NAME` | Brand string in the header |
+---
 
-`.env.example` files in each app document the full list.
+## Testing
+
+Backend tests live in `apps/api/tests/` and use Node 22's built-in test runner with `supertest` against an in-process Express app — no extra harness, no Jest. They cover the auth flow end-to-end (register, login, refresh rotation, logout) plus a happy-path integration of workspace create → invite → accept.
+
+```bash
+# Spin up Postgres for the test schema
+docker compose up -d
+
+# Run once
+pnpm --filter @team-hub/api test
+
+# Watch mode
+pnpm --filter @team-hub/api test --watch
+```
+
+For the frontend, the test plan is manual + browser-based: hit the live URL, log in as the demo user, exercise each feature once, and watch the network tab + console for regressions. Mobile viewport (375px) and dark mode are part of the same pass. The optimistic UI flows (kanban drop, reaction toggle, comment create) are the most useful smoke checks because they exercise the API + websocket loop in one click.
 
 ---
 
 ## License
 
-Built as a take-home assessment. Code is open for review.
+© Zobair Faiyaz. All rights reserved.
