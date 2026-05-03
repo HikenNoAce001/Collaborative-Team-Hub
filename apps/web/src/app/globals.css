@@ -154,14 +154,14 @@
 .dark .aurora-default .aurora-blob.b2 { background: radial-gradient(closest-side, #0891b2, transparent 70%); }
 .dark .aurora-default .aurora-blob.b3 { background: radial-gradient(closest-side, #059669, transparent 70%); }
 
-/* App variant — vibrant palette (fuchsia / lime / orange) for post-login pages */
-.aurora-app .aurora-blob.b1 { top: -20vmax; left: -20vmax; background: radial-gradient(closest-side, #d946ef, transparent 70%); animation: aurora-drift-1 22s ease-in-out infinite; }
-.aurora-app .aurora-blob.b2 { top:  30vmax; left:  35vmax; background: radial-gradient(closest-side, #84cc16, transparent 70%); animation: aurora-drift-2 28s ease-in-out infinite; }
-.aurora-app .aurora-blob.b3 { top: -10vmax; left:  30vmax; background: radial-gradient(closest-side, #f97316, transparent 70%); animation: aurora-drift-3 26s ease-in-out infinite; }
+/* App variant — oceanic + fireflies (sky / teal / warm-yellow glow) */
+.aurora-app .aurora-blob.b1 { top: -20vmax; left: -20vmax; background: radial-gradient(closest-side, #38bdf8, transparent 70%); animation: aurora-drift-1 22s ease-in-out infinite; }
+.aurora-app .aurora-blob.b2 { top:  30vmax; left:  35vmax; background: radial-gradient(closest-side, #2dd4bf, transparent 70%); animation: aurora-drift-2 28s ease-in-out infinite; }
+.aurora-app .aurora-blob.b3 { top: -10vmax; left:  30vmax; background: radial-gradient(closest-side, #fde047, transparent 70%); animation: aurora-drift-3 26s ease-in-out infinite; }
 
-.dark .aurora-app .aurora-blob.b1 { background: radial-gradient(closest-side, #a21caf, transparent 70%); }
-.dark .aurora-app .aurora-blob.b2 { background: radial-gradient(closest-side, #4d7c0f, transparent 70%); }
-.dark .aurora-app .aurora-blob.b3 { background: radial-gradient(closest-side, #c2410c, transparent 70%); }
+.dark .aurora-app .aurora-blob.b1 { background: radial-gradient(closest-side, #0369a1, transparent 70%); }
+.dark .aurora-app .aurora-blob.b2 { background: radial-gradient(closest-side, #0f766e, transparent 70%); }
+.dark .aurora-app .aurora-blob.b3 { background: radial-gradient(closest-side, #fbbf24, transparent 70%); }
 
 @media (prefers-reduced-motion: reduce) {
   .aurora-blob { animation: none !important; }
