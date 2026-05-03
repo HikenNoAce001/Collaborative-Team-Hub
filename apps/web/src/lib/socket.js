@@ -17,9 +17,14 @@ function getSocket() {
       typeof window !== 'undefined'
         ? window.location.origin
         : process.env.NEXT_PUBLIC_SOCKET_URL || 'http://localhost:4000';
+    // Polling transport only: Next.js rewrites are HTTP-only and don't reliably
+    // proxy the WebSocket upgrade handshake. Long-polling (plain HTTP) works
+    // through the proxy with the auth cookie attached. Latency is ~1s instead
+    // of instant, which is acceptable for presence + activity events.
     socket = io(url, {
       withCredentials: true,
       autoConnect: false,
+      transports: ['polling'],
     });
   }
   return socket;
