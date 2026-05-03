@@ -26,12 +26,12 @@ Built with **Express 5** + **Next.js 16** + **Prisma 7** + **Socket.io 4** + **P
 
 Open the live URL and sign in with any of the seeded users:
 
-| Email | Password | Role |
-| --- | --- | --- |
-| `demo@team-hub.test` | `Demo1234` | Admin |
+| Email                          | Password   | Role   |
+| ------------------------------ | ---------- | ------ |
+| `demo@team-hub.test`           | `Demo1234` | Admin  |
 | `sarah.designer@team-hub.test` | `Demo1234` | Member |
-| `jamie.dev@team-hub.test` | `Demo1234` | Member |
-| `alex.pm@team-hub.test` | `Demo1234` | Member |
+| `jamie.dev@team-hub.test`      | `Demo1234` | Member |
+| `alex.pm@team-hub.test`        | `Demo1234` | Member |
 
 Open two browsers with different accounts to see real-time presence, kanban moves, and notifications sync live.
 
@@ -115,39 +115,39 @@ socket.connect() ──► Next.js proxy ──► API socket.io middleware
 
 ## Feature Map
 
-| Domain | Highlights |
-| --- | --- |
-| **Auth** | JWT in `httpOnly` cookies. Refresh-token rotation with `RefreshToken` table (hashed at rest). Bcrypt cost 12. Rate limit 10/min on `/auth/*`. |
-| **Workspaces** | Multi-tenant with per-workspace `ADMIN`/`MEMBER` roles. Invitations via tokenized links (7-day expiry). Email fallback to console log. |
-| **Goals** | Status machine (`DRAFT` → `ON_TRACK` / `AT_RISK` → `COMPLETED`). Milestones with progress bars. Activity feed cursor-paginated. |
-| **Action Items** | Kanban (4 columns, dnd-kit) with **optimistic** drop. List view with sortable columns and URL-persisted filters. |
-| **Announcements** | Tiptap rich-text → server-side `sanitize-html`. Pin/unpin. Per-emoji reactions, flat comments, `@mentions` with autocomplete. |
-| **Real-time** | Workspace rooms broadcast every state change. Presence dots (5s leave detection). Per-user rooms for notifications. |
-| **Notifications** | Bell badge with unread count. Click to navigate to source (announcement/comment). Two kinds: `mention`, `reaction`. |
-| **Analytics** | Dashboard widgets (active goals, completed-this-week, overdue). Recharts completion line chart. CSV export. |
-| **Audit Log** | Every mutation writes one immutable row in the same transaction. Filter by actor / action / entity / date range. CSV export. |
-| **Bonus** | `next-themes` dark/light, `cmdk` ⌘K palette, Swagger UI at `/api/docs`. |
+| Domain            | Highlights                                                                                                                                    |
+| ----------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Auth**          | JWT in `httpOnly` cookies. Refresh-token rotation with `RefreshToken` table (hashed at rest). Bcrypt cost 12. Rate limit 10/min on `/auth/*`. |
+| **Workspaces**    | Multi-tenant with per-workspace `ADMIN`/`MEMBER` roles. Invitations via tokenized links (7-day expiry). Email fallback to console log.        |
+| **Goals**         | Status machine (`DRAFT` → `ON_TRACK` / `AT_RISK` → `COMPLETED`). Milestones with progress bars. Activity feed cursor-paginated.               |
+| **Action Items**  | Kanban (4 columns, dnd-kit) with **optimistic** drop. List view with sortable columns and URL-persisted filters.                              |
+| **Announcements** | Tiptap rich-text → server-side `sanitize-html`. Pin/unpin. Per-emoji reactions, flat comments, `@mentions` with autocomplete.                 |
+| **Real-time**     | Workspace rooms broadcast every state change. Presence dots (5s leave detection). Per-user rooms for notifications.                           |
+| **Notifications** | Bell badge with unread count. Click to navigate to source (announcement/comment). Two kinds: `mention`, `reaction`.                           |
+| **Analytics**     | Dashboard widgets (active goals, completed-this-week, overdue). Recharts completion line chart. CSV export.                                   |
+| **Audit Log**     | Every mutation writes one immutable row in the same transaction. Filter by actor / action / entity / date range. CSV export.                  |
+| **Bonus**         | `next-themes` dark/light, `cmdk` ⌘K palette, Swagger UI at `/api/docs`.                                                                       |
 
 ---
 
 ## Tech Stack
 
-| Layer | Choice |
-| --- | --- |
-| **API** | Node 22, Express 5, ESM, async route handlers |
-| **ORM** | Prisma 7 (`prisma-client-js`) + `@prisma/adapter-pg` |
-| **Database** | PostgreSQL 16 |
-| **Auth** | `jsonwebtoken`, `bcryptjs`, refresh-token rotation |
-| **Real-time** | `socket.io` 4 (polling transport in prod for proxy compatibility) |
-| **Validation** | Zod 4 — shared schemas in `packages/schemas` |
-| **Rich text** | `sanitize-html` server-side, `@tiptap/react` client-side |
-| **Storage** | Cloudinary for avatars (multipart via `multer`) |
-| **Docs** | `swagger-ui-express` + JSDoc-derived OpenAPI |
-| **Frontend** | Next.js 16 App Router, React 19, Tailwind 4, JSDoc (no TS) |
-| **Data** | TanStack Query 5 (server), Zustand 5 (UI) |
-| **UI** | dnd-kit, Recharts, lucide-react, sonner, cmdk, next-themes |
-| **Monorepo** | pnpm 9 workspaces + Turbo |
-| **Deploy** | Railway (API + Web + Postgres plugin), Dockerfile per service |
+| Layer          | Choice                                                            |
+| -------------- | ----------------------------------------------------------------- |
+| **API**        | Node 22, Express 5, ESM, async route handlers                     |
+| **ORM**        | Prisma 7 (`prisma-client-js`) + `@prisma/adapter-pg`              |
+| **Database**   | PostgreSQL 16                                                     |
+| **Auth**       | `jsonwebtoken`, `bcryptjs`, refresh-token rotation                |
+| **Real-time**  | `socket.io` 4 (polling transport in prod for proxy compatibility) |
+| **Validation** | Zod 4 — shared schemas in `packages/schemas`                      |
+| **Rich text**  | `sanitize-html` server-side, `@tiptap/react` client-side          |
+| **Storage**    | Cloudinary for avatars (multipart via `multer`)                   |
+| **Docs**       | `swagger-ui-express` + JSDoc-derived OpenAPI                      |
+| **Frontend**   | Next.js 16 App Router, React 19, Tailwind 4, JSDoc (no TS)        |
+| **Data**       | TanStack Query 5 (server), Zustand 5 (UI)                         |
+| **UI**         | dnd-kit, Recharts, lucide-react, sonner, cmdk, next-themes        |
+| **Monorepo**   | pnpm 9 workspaces + Turbo                                         |
+| **Deploy**     | Railway (API + Web + Postgres plugin), Dockerfile per service     |
 
 ---
 
@@ -207,80 +207,80 @@ pnpm lint                                      # turbo lint across packages
 
 ### Auth
 
-| Method | Route | Description |
-| --- | --- | --- |
-| POST | `/auth/register` | Create account, auto-login |
-| POST | `/auth/login` | Credentials → cookies |
-| POST | `/auth/refresh` | Rotate refresh + access tokens |
-| POST | `/auth/logout` | Revoke refresh, clear cookies |
-| GET  | `/auth/me` | Current user |
-| PATCH | `/users/me` | Update name |
-| POST | `/users/me/avatar` | Upload avatar to Cloudinary |
+| Method | Route              | Description                    |
+| ------ | ------------------ | ------------------------------ |
+| POST   | `/auth/register`   | Create account, auto-login     |
+| POST   | `/auth/login`      | Credentials → cookies          |
+| POST   | `/auth/refresh`    | Rotate refresh + access tokens |
+| POST   | `/auth/logout`     | Revoke refresh, clear cookies  |
+| GET    | `/auth/me`         | Current user                   |
+| PATCH  | `/users/me`        | Update name                    |
+| POST   | `/users/me/avatar` | Upload avatar to Cloudinary    |
 
 ### Workspaces & Members
 
-| Method | Route | Access |
-| --- | --- | --- |
-| GET   | `/workspaces` | Auth |
-| POST  | `/workspaces` | Auth (creator → admin) |
-| PATCH | `/workspaces/:id` | Admin |
-| DELETE| `/workspaces/:id` | Admin |
-| GET   | `/workspaces/:id/members` | Member |
-| PATCH | `/workspaces/:id/members/:userId` | Admin (role change) |
-| DELETE| `/workspaces/:id/members/:userId` | Admin |
-| POST  | `/workspaces/:id/invitations` | Admin |
-| POST  | `/invitations/accept` | Auth |
+| Method | Route                             | Access                 |
+| ------ | --------------------------------- | ---------------------- |
+| GET    | `/workspaces`                     | Auth                   |
+| POST   | `/workspaces`                     | Auth (creator → admin) |
+| PATCH  | `/workspaces/:id`                 | Admin                  |
+| DELETE | `/workspaces/:id`                 | Admin                  |
+| GET    | `/workspaces/:id/members`         | Member                 |
+| PATCH  | `/workspaces/:id/members/:userId` | Admin (role change)    |
+| DELETE | `/workspaces/:id/members/:userId` | Admin                  |
+| POST   | `/workspaces/:id/invitations`     | Admin                  |
+| POST   | `/invitations/accept`             | Auth                   |
 
 ### Goals & Milestones
 
-| Method | Route | Access |
-| --- | --- | --- |
-| GET   | `/workspaces/:id/goals` | Member · filters: `status`, `ownerId`, `q`, page |
-| POST  | `/workspaces/:id/goals` | Member |
-| GET   | `/goals/:id` | Member · returns goal + milestones + last 20 updates |
-| PATCH | `/goals/:id` | Owner / Admin |
-| DELETE| `/goals/:id` | Owner / Admin |
-| POST  | `/goals/:id/milestones` | Owner / Admin |
-| PATCH | `/milestones/:id` | Owner / Admin |
-| GET   | `/goals/:id/updates` | Member · cursor-paginated |
-| POST  | `/goals/:id/updates` | Member |
+| Method | Route                   | Access                                               |
+| ------ | ----------------------- | ---------------------------------------------------- |
+| GET    | `/workspaces/:id/goals` | Member · filters: `status`, `ownerId`, `q`, page     |
+| POST   | `/workspaces/:id/goals` | Member                                               |
+| GET    | `/goals/:id`            | Member · returns goal + milestones + last 20 updates |
+| PATCH  | `/goals/:id`            | Owner / Admin                                        |
+| DELETE | `/goals/:id`            | Owner / Admin                                        |
+| POST   | `/goals/:id/milestones` | Owner / Admin                                        |
+| PATCH  | `/milestones/:id`       | Owner / Admin                                        |
+| GET    | `/goals/:id/updates`    | Member · cursor-paginated                            |
+| POST   | `/goals/:id/updates`    | Member                                               |
 
 ### Action Items
 
-| Method | Route | Access |
-| --- | --- | --- |
-| GET   | `/workspaces/:id/action-items` | Member · filters: `status`, `assigneeId`, `priority`, `goalId`, `q` |
-| POST  | `/workspaces/:id/action-items` | Member |
-| PATCH | `/action-items/:id` | Member |
-| DELETE| `/action-items/:id` | Member |
+| Method | Route                          | Access                                                              |
+| ------ | ------------------------------ | ------------------------------------------------------------------- |
+| GET    | `/workspaces/:id/action-items` | Member · filters: `status`, `assigneeId`, `priority`, `goalId`, `q` |
+| POST   | `/workspaces/:id/action-items` | Member                                                              |
+| PATCH  | `/action-items/:id`            | Member                                                              |
+| DELETE | `/action-items/:id`            | Member                                                              |
 
 ### Announcements
 
-| Method | Route | Access |
-| --- | --- | --- |
-| GET   | `/workspaces/:id/announcements` | Member · pinned-first, with reaction breakdown |
-| POST  | `/workspaces/:id/announcements` | Admin |
-| PATCH | `/announcements/:id` | Admin |
-| DELETE| `/announcements/:id` | Admin |
-| POST  | `/announcements/:id/reactions` | Member · `{ emoji }` |
-| DELETE| `/announcements/:id/reactions/:emoji` | Member |
-| GET   | `/announcements/:id/comments` | Member · cursor-paginated |
-| POST  | `/announcements/:id/comments` | Member · `{ body, mentionUserIds[] }` |
-| PATCH | `/comments/:commentId` | Author |
-| DELETE| `/comments/:commentId` | Author / Admin |
+| Method | Route                                 | Access                                         |
+| ------ | ------------------------------------- | ---------------------------------------------- |
+| GET    | `/workspaces/:id/announcements`       | Member · pinned-first, with reaction breakdown |
+| POST   | `/workspaces/:id/announcements`       | Admin                                          |
+| PATCH  | `/announcements/:id`                  | Admin                                          |
+| DELETE | `/announcements/:id`                  | Admin                                          |
+| POST   | `/announcements/:id/reactions`        | Member · `{ emoji }`                           |
+| DELETE | `/announcements/:id/reactions/:emoji` | Member                                         |
+| GET    | `/announcements/:id/comments`         | Member · cursor-paginated                      |
+| POST   | `/announcements/:id/comments`         | Member · `{ body, mentionUserIds[] }`          |
+| PATCH  | `/comments/:commentId`                | Author                                         |
+| DELETE | `/comments/:commentId`                | Author / Admin                                 |
 
 ### Notifications, Analytics, Audit
 
-| Method | Route | Access |
-| --- | --- | --- |
-| GET   | `/notifications` | Auth |
-| PATCH | `/notifications/:id/read` | Auth |
-| PATCH | `/notifications/read-all` | Auth |
-| GET   | `/workspaces/:id/analytics/summary` | Member |
-| GET   | `/workspaces/:id/analytics/completions?period=12w` | Member |
-| GET   | `/workspaces/:id/export.csv?type=goals\|action-items\|all` | Member |
-| GET   | `/workspaces/:id/audit-logs` | Admin · filters: `actorId`, `action`, `entityType`, `from`, `to` |
-| GET   | `/workspaces/:id/audit-logs/export.csv` | Admin |
+| Method | Route                                                      | Access                                                           |
+| ------ | ---------------------------------------------------------- | ---------------------------------------------------------------- |
+| GET    | `/notifications`                                           | Auth                                                             |
+| PATCH  | `/notifications/:id/read`                                  | Auth                                                             |
+| PATCH  | `/notifications/read-all`                                  | Auth                                                             |
+| GET    | `/workspaces/:id/analytics/summary`                        | Member                                                           |
+| GET    | `/workspaces/:id/analytics/completions?period=12w`         | Member                                                           |
+| GET    | `/workspaces/:id/export.csv?type=goals\|action-items\|all` | Member                                                           |
+| GET    | `/workspaces/:id/audit-logs`                               | Admin · filters: `actorId`, `action`, `entityType`, `from`, `to` |
+| GET    | `/workspaces/:id/audit-logs/export.csv`                    | Admin                                                            |
 
 Full schema + request/response shapes at **[`/api/docs`](https://collaborative-team-hub-api.up.railway.app/api/docs)** (Swagger UI).
 
@@ -290,15 +290,15 @@ Full schema + request/response shapes at **[`/api/docs`](https://collaborative-t
 
 Server → Client (subscribed via socket.io rooms):
 
-| Event | Room | Payload |
-| --- | --- | --- |
-| `presence:update` | `workspace:${id}` | `{ workspaceId, online: string[] }` |
-| `goal:created` / `goal:updated` / `goal:deleted` | `workspace:${id}` | `{ workspaceId, goal }` |
-| `action-item:created` / `:updated` / `:deleted` | `workspace:${id}` | `{ workspaceId, item }` |
-| `announcement:created` / `:updated` / `:deleted` | `workspace:${id}` | `{ workspaceId, announcement }` |
-| `reaction:added` / `reaction:removed` | `workspace:${id}` | `{ workspaceId, announcementId, reaction }` |
-| `comment:created` / `:updated` / `:deleted` | `workspace:${id}` | `{ workspaceId, announcementId, comment }` |
-| `notification:created` | `user:${id}` | `{ notification }` |
+| Event                                            | Room              | Payload                                     |
+| ------------------------------------------------ | ----------------- | ------------------------------------------- |
+| `presence:update`                                | `workspace:${id}` | `{ workspaceId, online: string[] }`         |
+| `goal:created` / `goal:updated` / `goal:deleted` | `workspace:${id}` | `{ workspaceId, goal }`                     |
+| `action-item:created` / `:updated` / `:deleted`  | `workspace:${id}` | `{ workspaceId, item }`                     |
+| `announcement:created` / `:updated` / `:deleted` | `workspace:${id}` | `{ workspaceId, announcement }`             |
+| `reaction:added` / `reaction:removed`            | `workspace:${id}` | `{ workspaceId, announcementId, reaction }` |
+| `comment:created` / `:updated` / `:deleted`      | `workspace:${id}` | `{ workspaceId, announcementId, comment }`  |
+| `notification:created`                           | `user:${id}`      | `{ notification }`                          |
 
 Client → Server: `workspace:join`, `workspace:leave` (after socket auth).
 
@@ -404,17 +404,17 @@ The announcements list returns each post with a `reactionsByEmoji: { '🚀': 3, 
 
 ## Troubleshooting
 
-| Symptom | Likely cause |
-| --- | --- |
-| **Login API returns 200 but page bounces back to `/login`** | Auth cookie didn't land on the web origin. In production this means the Next.js proxy isn't running — check `apps/web/next.config.mjs` rewrites and `NEXT_PUBLIC_API_URL` env. Locally clear `localhost` cookies and retry. |
-| **`MODULE_NOT_FOUND: @prisma/client-runtime-utils`** | pnpm didn't hoist Prisma's transitive deps. Confirm `.npmrc` at the repo root contains `public-hoist-pattern[]=*@prisma/*` and re-run `pnpm install`. The Dockerfiles copy this file explicitly. |
-| **`Unknown argument 'ip'` (or any other Prisma type error)** | Prisma client is stale after a migration. Run `pnpm --filter @team-hub/api db:generate`. The `db:migrate` script chains generate so this only happens when migrations are run by hand. |
-| **No green presence dots in production** | Socket polling requests are 404'ing — engine.io requires the trailing slash on `/socket.io/`. Check that `next.config.mjs` has the explicit `'/socket.io' → '/socket.io/'` rewrite and `skipTrailingSlashRedirect: true`. |
-| **Avatar upload fails silently** | `CLOUDINARY_CLOUD_NAME` / `CLOUDINARY_API_KEY` / `CLOUDINARY_API_SECRET` not set on the API. The rest of the app still works. |
-| **`JWT_*_SECRET must be ≥ 32 chars`** at boot | Generate proper secrets: `node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"`. The env loader is strict. |
-| **`Invalid environment configuration`** at boot | Missing or malformed env var caught by Zod. The error lists exactly which key is wrong — fix and restart. |
-| **Local seed says `Can't reach database`** | Postgres container isn't up. `docker compose up -d` then retry. |
-| **Production seed via `railway run` fails** | `DATABASE_URL` resolves to `postgres.railway.internal` which only exists inside Railway's network. Use `railway ssh` and run the seed inside the container instead. |
+| Symptom                                                      | Likely cause                                                                                                                                                                                                                |
+| ------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Login API returns 200 but page bounces back to `/login`**  | Auth cookie didn't land on the web origin. In production this means the Next.js proxy isn't running — check `apps/web/next.config.mjs` rewrites and `NEXT_PUBLIC_API_URL` env. Locally clear `localhost` cookies and retry. |
+| **`MODULE_NOT_FOUND: @prisma/client-runtime-utils`**         | pnpm didn't hoist Prisma's transitive deps. Confirm `.npmrc` at the repo root contains `public-hoist-pattern[]=*@prisma/*` and re-run `pnpm install`. The Dockerfiles copy this file explicitly.                            |
+| **`Unknown argument 'ip'` (or any other Prisma type error)** | Prisma client is stale after a migration. Run `pnpm --filter @team-hub/api db:generate`. The `db:migrate` script chains generate so this only happens when migrations are run by hand.                                      |
+| **No green presence dots in production**                     | Socket polling requests are 404'ing — engine.io requires the trailing slash on `/socket.io/`. Check that `next.config.mjs` has the explicit `'/socket.io' → '/socket.io/'` rewrite and `skipTrailingSlashRedirect: true`.   |
+| **Avatar upload fails silently**                             | `CLOUDINARY_CLOUD_NAME` / `CLOUDINARY_API_KEY` / `CLOUDINARY_API_SECRET` not set on the API. The rest of the app still works.                                                                                               |
+| **`JWT_*_SECRET must be ≥ 32 chars`** at boot                | Generate proper secrets: `node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"`. The env loader is strict.                                                                                              |
+| **`Invalid environment configuration`** at boot              | Missing or malformed env var caught by Zod. The error lists exactly which key is wrong — fix and restart.                                                                                                                   |
+| **Local seed says `Can't reach database`**                   | Postgres container isn't up. `docker compose up -d` then retry.                                                                                                                                                             |
+| **Production seed via `railway run` fails**                  | `DATABASE_URL` resolves to `postgres.railway.internal` which only exists inside Railway's network. Use `railway ssh` and run the seed inside the container instead.                                                         |
 
 ---
 
@@ -451,4 +451,4 @@ For the frontend, the test plan is manual + browser-based: hit the live URL, log
 
 ## License
 
-© Zobair Faiyaz. All rights reserved.
+© Zobair. All rights reserved.
