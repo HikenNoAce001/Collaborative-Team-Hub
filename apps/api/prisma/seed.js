@@ -1,326 +1,285 @@
-// Demo workspace seed — REQUIREMENTS.md §N. Idempotent: every record is keyed
-// by a stable natural identifier (email, composite unique, or title-within-workspace)
-// so re-running this script converges instead of duplicating.
+// Production demo seed — what the recruiter sees on first login.
+// Polished, realistic, every feature surfaced visually. Idempotent.
 
-import bcrypt from 'bcryptjs';
-import { PrismaClient } from '../src/generated/prisma/index.js';
-import { PrismaPg } from '@prisma/adapter-pg';
-
-const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL });
-const prisma = new PrismaClient({ adapter });
-
-const log = (...args) => console.info('[seed]', ...args);
-
-const DEMO_WORKSPACE_NAME = 'Acme Product Launch';
-const DEMO_WORKSPACE_DESC = 'Demo workspace for the Team Hub assessment.';
-const DEMO_ACCENT = '#6366F1';
+import {
+  prisma,
+  log,
+  days,
+  upsertUser,
+  upsertWorkspace,
+  upsertMember,
+  upsertGoal,
+  upsertMilestone,
+  upsertItem,
+  upsertAnnouncement,
+  upsertReaction,
+  upsertComment,
+  upsertNotification,
+  withSeed,
+} from './seed-helpers.js';
 
 const USERS = [
-  { email: 'demo@team-hub.test', name: 'Demo Admin', password: 'Demo1234', role: 'ADMIN' },
-  { email: 'sarah.designer@team-hub.test', name: 'Sarah Designer', password: 'Demo1234', role: 'MEMBER' },
-  { email: 'jamie.dev@team-hub.test', name: 'Jamie Developer', password: 'Demo1234', role: 'MEMBER' },
+  { email: 'demo@team-hub.test', name: 'Maya Chen', password: 'Demo1234' },
+  { email: 'sarah.designer@team-hub.test', name: 'Sarah Blackwood', password: 'Demo1234' },
+  { email: 'jamie.dev@team-hub.test', name: 'Jamie Park', password: 'Demo1234' },
+  { email: 'alex.pm@team-hub.test', name: 'Alex Rivera', password: 'Demo1234' },
 ];
 
-const days = (n) => new Date(Date.now() + n * 86_400_000);
+await withSeed(async () => {
+  log('starting (production demo)');
 
-async function upsertUser({ email, name, password }) {
-  const passwordHash = await bcrypt.hash(password, 12);
-  return prisma.user.upsert({
-    where: { email },
-    update: { name }, // password rotation on re-seed is intentional — keeps demo creds stable
-    create: { email, name, passwordHash },
-  });
-}
+  const [maya, sarah, jamie, alex] = await Promise.all(USERS.map(upsertUser));
+  log(`users: ${USERS.length}`);
 
-async function upsertWorkspace() {
-  const existing = await prisma.workspace.findFirst({
-    where: { name: DEMO_WORKSPACE_NAME, description: DEMO_WORKSPACE_DESC },
+  const workspace = await upsertWorkspace({
+    name: 'Pulse Studio',
+    description: 'Cross-functional product team — design, engineering, and PM working in lockstep.',
+    accentColor: '#3B82F6',
   });
-  if (existing) return existing;
-  return prisma.workspace.create({
-    data: {
-      name: DEMO_WORKSPACE_NAME,
-      description: DEMO_WORKSPACE_DESC,
-      accentColor: DEMO_ACCENT,
-    },
-  });
-}
+  log(`workspace: ${workspace.name}`);
 
-async function upsertMember(workspaceId, userId, role) {
-  return prisma.workspaceMember.upsert({
-    where: { workspaceId_userId: { workspaceId, userId } },
-    update: { role },
-    create: { workspaceId, userId, role },
-  });
-}
-
-async function findOrCreateGoal(workspaceId, ownerId, body) {
-  const existing = await prisma.goal.findFirst({
-    where: { workspaceId, title: body.title },
-  });
-  if (existing) {
-    return prisma.goal.update({
-      where: { id: existing.id },
-      data: { description: body.description, dueDate: body.dueDate, status: body.status, ownerId },
-    });
-  }
-  return prisma.goal.create({
-    data: { workspaceId, ownerId, ...body },
-  });
-}
-
-async function findOrCreateMilestone(goalId, body) {
-  const existing = await prisma.milestone.findFirst({
-    where: { goalId, title: body.title },
-  });
-  if (existing) {
-    return prisma.milestone.update({
-      where: { id: existing.id },
-      data: { progress: body.progress },
-    });
-  }
-  return prisma.milestone.create({
-    data: { goalId, ...body },
-  });
-}
-
-async function findOrCreateItem(workspaceId, body) {
-  const existing = await prisma.actionItem.findFirst({
-    where: { workspaceId, title: body.title },
-  });
-  if (existing) {
-    return prisma.actionItem.update({
-      where: { id: existing.id },
-      data: body,
-    });
-  }
-  return prisma.actionItem.create({
-    data: { workspaceId, ...body },
-  });
-}
-
-async function findOrCreateAnnouncement(workspaceId, authorId, body) {
-  const existing = await prisma.announcement.findFirst({
-    where: { workspaceId, title: body.title },
-  });
-  if (existing) {
-    return prisma.announcement.update({
-      where: { id: existing.id },
-      data: {
-        bodyHtml: body.bodyHtml,
-        pinned: body.pinned,
-        authorId,
-      },
-    });
-  }
-  return prisma.announcement.create({
-    data: { workspaceId, authorId, ...body },
-  });
-}
-
-async function upsertReaction(announcementId, userId, emoji) {
-  return prisma.reaction.upsert({
-    where: { announcementId_userId_emoji: { announcementId, userId, emoji } },
-    update: {},
-    create: { announcementId, userId, emoji },
-  });
-}
-
-async function findOrCreateComment(announcementId, authorId, body, mentionUserIds = []) {
-  const existing = await prisma.comment.findFirst({
-    where: { announcementId, authorId, body },
-  });
-  if (existing) {
-    return prisma.comment.update({
-      where: { id: existing.id },
-      data: { mentionUserIds },
-    });
-  }
-  return prisma.comment.create({
-    data: { announcementId, authorId, body, mentionUserIds },
-  });
-}
-
-async function findOrCreateNotification(recipientId, kind, payload) {
-  // Match on recipient + kind + payload-keys to keep idempotency without a unique constraint.
-  const candidates = await prisma.notification.findMany({
-    where: { recipientId, kind },
-  });
-  const match = candidates.find(
-    (n) =>
-      n.payload?.commentId === payload.commentId &&
-      n.payload?.announcementId === payload.announcementId,
-  );
-  if (match) return match;
-  return prisma.notification.create({
-    data: { recipientId, kind, payload },
-  });
-}
-
-async function seed() {
-  log('starting');
-
-  const [admin, sarah, jamie] = await Promise.all(USERS.map(upsertUser));
-  log(`users: ${admin.email}, ${sarah.email}, ${jamie.email}`);
-
-  const workspace = await upsertWorkspace();
-  log(`workspace: ${workspace.name} (${workspace.id})`);
-
-  await upsertMember(workspace.id, admin.id, 'ADMIN');
+  await upsertMember(workspace.id, maya.id, 'ADMIN');
   await upsertMember(workspace.id, sarah.id, 'MEMBER');
   await upsertMember(workspace.id, jamie.id, 'MEMBER');
-  log('memberships: 3');
+  await upsertMember(workspace.id, alex.id, 'MEMBER');
+  log('memberships: 4');
 
-  // ── Goals (3) with milestones ───────────────────────────────────────────────
-  const goalLaunch = await findOrCreateGoal(workspace.id, admin.id, {
-    title: 'Ship v2 product launch',
-    description: 'End-to-end launch of the new dashboard, marketing site, and onboarding flow.',
+  // ── Goals (4) — covers every status ────────────────────────────────────────
+  const goalLaunch = await upsertGoal(workspace.id, maya.id, {
+    title: 'Ship Q3 product launch',
+    description: 'Cross-team launch of the new dashboard, marketing site, and onboarding flow.',
     status: 'ON_TRACK',
     dueDate: days(45),
   });
-  await findOrCreateMilestone(goalLaunch.id, { title: 'Beta release', progress: 100 });
-  await findOrCreateMilestone(goalLaunch.id, { title: 'Marketing site live', progress: 60 });
-  await findOrCreateMilestone(goalLaunch.id, { title: 'GA rollout', progress: 15 });
+  await upsertMilestone(goalLaunch.id, { title: 'Beta release', progress: 100 });
+  await upsertMilestone(goalLaunch.id, { title: 'Marketing site live', progress: 65 });
+  await upsertMilestone(goalLaunch.id, { title: 'GA rollout', progress: 20 });
 
-  const goalDesign = await findOrCreateGoal(workspace.id, sarah.id, {
-    title: 'Refresh design system',
-    description: 'Migrate components to Tailwind v4 tokens and re-document patterns.',
+  const goalDesign = await upsertGoal(workspace.id, sarah.id, {
+    title: 'Refresh design system to v4',
+    description: 'Migrate every component to Tailwind v4 tokens and re-document patterns.',
     status: 'AT_RISK',
-    dueDate: days(20),
+    dueDate: days(18),
   });
-  await findOrCreateMilestone(goalDesign.id, { title: 'Token audit', progress: 80 });
-  await findOrCreateMilestone(goalDesign.id, { title: 'Component migration', progress: 35 });
+  await upsertMilestone(goalDesign.id, { title: 'Token audit', progress: 85 });
+  await upsertMilestone(goalDesign.id, { title: 'Component migration', progress: 40 });
+  await upsertMilestone(goalDesign.id, { title: 'Docs refresh', progress: 15 });
 
-  const goalQuality = await findOrCreateGoal(workspace.id, jamie.id, {
-    title: 'Cut error rate by 50%',
-    description: 'Tighten observability, fix top 5 noisy errors, and add e2e regressions.',
+  const goalQuality = await upsertGoal(workspace.id, jamie.id, {
+    title: 'Cut error budget by 60%',
+    description: 'Tighten observability, fix the top noisy errors, add e2e regression tests.',
     status: 'DRAFT',
     dueDate: days(75),
   });
-  await findOrCreateMilestone(goalQuality.id, { title: 'Sentry triage', progress: 0 });
+  await upsertMilestone(goalQuality.id, { title: 'Sentry triage', progress: 0 });
+  await upsertMilestone(goalQuality.id, { title: 'Top 5 fixes', progress: 0 });
 
-  log('goals: 3 with milestones');
+  const goalOnboarding = await upsertGoal(workspace.id, alex.id, {
+    title: 'Onboarding redesign',
+    description: 'Cut activation time-to-first-value from 3 days to 30 minutes.',
+    status: 'COMPLETED',
+    dueDate: days(-10),
+  });
+  await upsertMilestone(goalOnboarding.id, { title: 'User research', progress: 100 });
+  await upsertMilestone(goalOnboarding.id, { title: 'Prototype + test', progress: 100 });
+  await upsertMilestone(goalOnboarding.id, { title: 'Ship + measure', progress: 100 });
 
-  // ── Action items (6, two overdue) ──────────────────────────────────────────
-  await findOrCreateItem(workspace.id, {
-    goalId: goalLaunch.id,
-    assigneeId: jamie.id,
+  log('goals: 4 (4 statuses), milestones: 11');
+
+  // ── Action items (16) — 4 in each status, mixed priorities + assignees ─────
+  // TODO
+  await upsertItem(workspace.id, {
+    goalId: goalDesign.id, assigneeId: jamie.id,
+    title: 'Fix focus-ring regression in dark mode',
+    description: 'Outline disappears on Card on Safari — flagged by QA last sprint.',
+    priority: 'URGENT', status: 'TODO', dueDate: days(-2),
+  });
+  await upsertItem(workspace.id, {
+    goalId: goalQuality.id, assigneeId: jamie.id,
+    title: 'Wire up Sentry source map upload in CI',
+    priority: 'HIGH', status: 'TODO', dueDate: days(7),
+  });
+  await upsertItem(workspace.id, {
+    goalId: goalLaunch.id, assigneeId: alex.id,
+    title: 'Schedule launch retro',
+    priority: 'LOW', status: 'TODO', dueDate: days(50),
+  });
+  await upsertItem(workspace.id, {
+    assigneeId: sarah.id,
+    title: 'Audit empty-state illustrations',
+    priority: 'MEDIUM', status: 'TODO', dueDate: days(14),
+  });
+
+  // IN_PROGRESS
+  await upsertItem(workspace.id, {
+    goalId: goalLaunch.id, assigneeId: jamie.id,
     title: 'Write launch announcement copy',
     description: 'Draft for the marketing blog + social posts.',
-    priority: 'HIGH',
-    status: 'IN_PROGRESS',
-    dueDate: days(5),
+    priority: 'HIGH', status: 'IN_PROGRESS', dueDate: days(5),
   });
-
-  await findOrCreateItem(workspace.id, {
-    goalId: goalLaunch.id,
-    assigneeId: sarah.id,
-    title: 'Final hero illustration',
-    priority: 'MEDIUM',
-    status: 'REVIEW',
-    dueDate: days(2),
-  });
-
-  await findOrCreateItem(workspace.id, {
-    goalId: goalDesign.id,
-    assigneeId: sarah.id,
+  await upsertItem(workspace.id, {
+    goalId: goalDesign.id, assigneeId: sarah.id,
     title: 'Migrate Button + Card to v4 tokens',
-    priority: 'MEDIUM',
-    status: 'DONE',
-    dueDate: days(-3),
+    priority: 'HIGH', status: 'IN_PROGRESS', dueDate: days(3),
   });
-
-  // Two overdue items — past due date, not DONE.
-  await findOrCreateItem(workspace.id, {
-    goalId: goalDesign.id,
-    assigneeId: jamie.id,
-    title: 'Fix focus-ring regression in dark mode',
-    description: 'Reported by QA last sprint — outline disappears on Card on Safari.',
-    priority: 'URGENT',
-    status: 'TODO',
-    dueDate: days(-2),
-  });
-  await findOrCreateItem(workspace.id, {
-    goalId: goalQuality.id,
-    assigneeId: admin.id,
+  await upsertItem(workspace.id, {
+    goalId: goalQuality.id, assigneeId: maya.id,
     title: 'Backfill Sentry source maps for v1',
-    priority: 'HIGH',
-    status: 'IN_PROGRESS',
-    dueDate: days(-7),
+    priority: 'MEDIUM', status: 'IN_PROGRESS', dueDate: days(-7),
+  });
+  await upsertItem(workspace.id, {
+    goalId: goalLaunch.id, assigneeId: alex.id,
+    title: 'Prep launch-week customer interviews',
+    priority: 'MEDIUM', status: 'IN_PROGRESS', dueDate: days(10),
   });
 
-  await findOrCreateItem(workspace.id, {
-    assigneeId: jamie.id,
-    title: 'Schedule the launch retro',
-    priority: 'LOW',
-    status: 'TODO',
-    dueDate: days(60),
+  // REVIEW
+  await upsertItem(workspace.id, {
+    goalId: goalLaunch.id, assigneeId: sarah.id,
+    title: 'Final hero illustration',
+    priority: 'MEDIUM', status: 'REVIEW', dueDate: days(2),
+  });
+  await upsertItem(workspace.id, {
+    goalId: goalLaunch.id, assigneeId: maya.id,
+    title: 'Pricing page copy review',
+    priority: 'HIGH', status: 'REVIEW', dueDate: days(4),
+  });
+  await upsertItem(workspace.id, {
+    goalId: goalDesign.id, assigneeId: jamie.id,
+    title: 'Storybook upgrade PR',
+    priority: 'LOW', status: 'REVIEW', dueDate: days(8),
+  });
+  await upsertItem(workspace.id, {
+    goalId: goalLaunch.id, assigneeId: alex.id,
+    title: 'Press kit assets',
+    priority: 'LOW', status: 'REVIEW', dueDate: days(6),
   });
 
-  log('action items: 6');
+  // DONE
+  await upsertItem(workspace.id, {
+    goalId: goalDesign.id, assigneeId: sarah.id,
+    title: 'Color token migration',
+    priority: 'MEDIUM', status: 'DONE', dueDate: days(-3),
+  });
+  await upsertItem(workspace.id, {
+    goalId: goalOnboarding.id, assigneeId: alex.id,
+    title: 'Ship redesigned welcome flow',
+    priority: 'HIGH', status: 'DONE', dueDate: days(-12),
+  });
+  await upsertItem(workspace.id, {
+    goalId: goalLaunch.id, assigneeId: maya.id,
+    title: 'Beta feedback synthesis',
+    priority: 'MEDIUM', status: 'DONE', dueDate: days(-5),
+  });
+  await upsertItem(workspace.id, {
+    goalId: goalOnboarding.id, assigneeId: jamie.id,
+    title: 'Activation funnel instrumentation',
+    priority: 'HIGH', status: 'DONE', dueDate: days(-15),
+  });
 
-  // ── Announcements (2, 1 pinned) ────────────────────────────────────────────
-  const annPinned = await findOrCreateAnnouncement(workspace.id, admin.id, {
-    title: 'Welcome to Acme Product Launch',
+  log('action items: 16 (4 per status)');
+
+  // ── Announcements (3) ──────────────────────────────────────────────────────
+  const annPinned = await upsertAnnouncement(workspace.id, maya.id, {
+    title: 'Welcome to Pulse Studio',
     bodyHtml: [
-      '<p>Welcome to the demo workspace! This is a pinned announcement to show off the layout.</p>',
-      '<p>Things you can do here:</p>',
+      '<p>Welcome to the demo workspace. This is the pinned post that shows on every login.</p>',
+      '<p>Try these to see Team Hub in action:</p>',
       '<ul>',
-      '<li>Check the <strong>Goals</strong> tab for our quarterly objectives.</li>',
-      '<li>Drag cards around the <strong>Action Items</strong> kanban — moves are live.</li>',
-      '<li>Click an announcement to react and comment.</li>',
+      '<li>Open the <strong>Goals</strong> tab and click any goal to see milestones.</li>',
+      '<li>Drag cards on the <strong>Action Items</strong> kanban — moves are real-time across tabs.</li>',
+      '<li>Click an announcement, react with an emoji, leave a comment, mention a teammate with <code>@</code>.</li>',
+      '<li>Open <strong>Members</strong> to see online presence dots update live.</li>',
       '</ul>',
-      '<p>Look for the 🚀 reaction below.</p>',
+      '<p>Drop a 🚀 below if everything looks good.</p>',
     ].join(''),
     pinned: true,
   });
 
-  const annPost = await findOrCreateAnnouncement(workspace.id, sarah.id, {
-    title: 'Design system migration update',
+  const annDesign = await upsertAnnouncement(workspace.id, sarah.id, {
+    title: 'Design system migration — week 3 update',
     bodyHtml: [
-      '<p>Token audit is at <strong>80%</strong> — finishing color + radius next.</p>',
-      '<p>Component migration starts Monday. Tracking it under <em>Refresh design system</em>.</p>',
+      '<p>Token audit landed at <strong>85%</strong> — finishing color + radius this week.</p>',
+      '<p>Component migration is at 40% and starting to accelerate now that the audit is mostly done. Tracking it under <em>Refresh design system to v4</em>.</p>',
+      '<p>Let me know if you hit anything weird in dark mode — I owe Jamie a fix on the focus ring.</p>',
     ].join(''),
     pinned: false,
   });
 
-  log('announcements: 2 (1 pinned)');
+  const annLaunch = await upsertAnnouncement(workspace.id, alex.id, {
+    title: 'Q3 launch — marketing kickoff next Tuesday',
+    bodyHtml: [
+      '<p>Pulling everyone in for the launch marketing kickoff <strong>next Tuesday at 10am PT</strong>.</p>',
+      '<p>Agenda:</p>',
+      '<ul>',
+      '<li>Final positioning + messaging review (Maya)</li>',
+      '<li>Launch-day asset checklist (Sarah)</li>',
+      '<li>Press + analyst outreach plan (Alex)</li>',
+      '</ul>',
+    ].join(''),
+    pinned: false,
+  });
 
-  // ── Reactions ──────────────────────────────────────────────────────────────
+  log('announcements: 3 (1 pinned)');
+
+  // ── Reactions (10) ─────────────────────────────────────────────────────────
   await Promise.all([
-    upsertReaction(annPinned.id, admin.id, '🚀'),
+    upsertReaction(annPinned.id, maya.id, '🚀'),
     upsertReaction(annPinned.id, sarah.id, '🚀'),
     upsertReaction(annPinned.id, jamie.id, '❤️'),
-    upsertReaction(annPost.id, admin.id, '👍'),
-    upsertReaction(annPost.id, jamie.id, '👍'),
+    upsertReaction(annPinned.id, alex.id, '🎉'),
+    upsertReaction(annDesign.id, maya.id, '👍'),
+    upsertReaction(annDesign.id, jamie.id, '👍'),
+    upsertReaction(annDesign.id, alex.id, '🔥'),
+    upsertReaction(annLaunch.id, maya.id, '🎉'),
+    upsertReaction(annLaunch.id, sarah.id, '👍'),
+    upsertReaction(annLaunch.id, jamie.id, '🚀'),
   ]);
-  log('reactions: 5');
+  log('reactions: 10');
 
-  // ── Mention comment + notification ─────────────────────────────────────────
-  const mentionComment = await findOrCreateComment(
+  // ── Comments + mentions ────────────────────────────────────────────────────
+  const mentionComment = await upsertComment(
     annPinned.id,
     sarah.id,
-    `@${admin.name} can you double-check the rollout date in the post above? Want to make sure it lines up with marketing.`,
-    [admin.id],
+    `@${maya.name} can you double-check the rollout date in the post above? Want to make sure it lines up with marketing.`,
+    [maya.id],
+  );
+  await upsertComment(
+    annPinned.id,
+    jamie.id,
+    'Looks great. The kanban + presence combo is genuinely useful, not gimmicky.',
+  );
+  await upsertComment(
+    annDesign.id,
+    jamie.id,
+    `Thanks @${sarah.name} — happy to pair on the focus-ring fix tomorrow morning if you have time.`,
+    [sarah.id],
+  );
+  await upsertComment(
+    annLaunch.id,
+    maya.id,
+    'Adding a slot for analytics review at the end. Will send a calendar update.',
   );
 
-  await findOrCreateNotification(admin.id, 'mention', {
+  log('comments: 4 (2 with mentions)');
+
+  // ── Notifications (mention + reaction) ─────────────────────────────────────
+  await upsertNotification(maya.id, 'mention', {
     workspaceId: workspace.id,
     announcementId: annPinned.id,
     commentId: mentionComment.id,
-    actor: { id: sarah.id, name: sarah.name, avatarUrl: null },
+    actor: { id: sarah.id, name: sarah.name, avatarUrl: sarah.avatarUrl },
     preview: 'can you double-check the rollout date…',
   });
-  log('mention comment + notification');
+  await upsertNotification(sarah.id, 'reaction', {
+    workspaceId: workspace.id,
+    announcementId: annDesign.id,
+    emoji: '🔥',
+    actor: { id: alex.id, name: alex.name, avatarUrl: alex.avatarUrl },
+    preview: '🔥 on "Design system migration — week 3 update"',
+  });
+
+  log('notifications: 2');
 
   log('done — login: demo@team-hub.test / Demo1234');
-}
-
-seed()
-  .catch((err) => {
-    console.error('[seed] failed:', err);
-    process.exit(1);
-  })
-  .finally(async () => {
-    await prisma.$disconnect();
-  });
+});
