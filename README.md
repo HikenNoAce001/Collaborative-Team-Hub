@@ -130,6 +130,32 @@ socket.connect() ──► Next.js proxy ──► API socket.io middleware
 
 ---
 
+## Advanced Features (chosen)
+
+Two of the five offered advanced challenges are implemented:
+
+### 1. Optimistic UI
+
+Every mutation that produces a visible reaction goes through TanStack Query's `onMutate` / `onError` / `onSettled` lifecycle with snapshot-and-rollback:
+
+- **Kanban drag-and-drop** ([action items board](https://teamhub-pulse.up.railway.app)) — card lands in the new column immediately, server reconciles via `action-item:updated` socket event. Rollback on failure with a toast.
+- **Reaction toggle** on announcements — count flips before the network round-trip.
+- **Comment create + delete**, **goal status / milestone progress**, **pin/unpin** — all use the same helper at `apps/web/src/lib/optimistic.js`.
+
+To see it: drag a card on the kanban while throttling the network in DevTools. The card moves first, then the network call completes. If you simulate a 500, the card snaps back and a toast appears.
+
+### 2. Audit Log
+
+Every state-changing action on goals, action items, announcements, members, and invitations writes one immutable `AuditLog` row inside the same `prisma.$transaction` as the mutation itself. If the audit insert fails, the whole action rolls back — no orphaned changes.
+
+- Schema: `actorId · action · entityType · entityId · before · after · ip · createdAt`
+- `action ∈ CREATE | UPDATE | DELETE | PIN | UNPIN | INVITE | ACCEPT_INVITE | REVOKE_INVITE | ROLE_CHANGE | REMOVE_MEMBER`
+- Filterable timeline UI (admin-only) at `/w/[id]/audit` — by actor, action, entity type, date range
+- CSV export at `/workspaces/:id/audit-logs/export.csv`
+- No `PATCH`/`DELETE` routes on the audit table: append-only by design
+
+---
+
 ## Tech Stack
 
 | Layer          | Choice                                                            |
@@ -427,6 +453,55 @@ The repo is a pnpm 9 workspace, not npm or yarn. Three reasons:
 - **First-class workspace support.** `pnpm --filter @team-hub/api db:migrate` runs the script in one workspace package without leaving the repo root. The build pipeline (`turbo run build`) leans on this for parallel, cached builds.
 
 The `.npmrc` at the repo root pins `public-hoist-pattern[]=*@prisma/*` so Prisma's generated client can resolve its own internal runtime — a quirk that pnpm's strict isolation would otherwise hide.
+
+---
+
+## Environment Variables
+
+Both apps ship `.env.example` files with the full annotated list — copy them when you clone.
+
+**`apps/api/.env`**
+
+```
+NODE_ENV=development
+PORT=4000
+DATABASE_URL=postgresql://...
+JWT_ACCESS_SECRET=<32+ hex chars>
+JWT_REFRESH_SECRET=<32+ hex chars, different>
+ACCESS_TOKEN_TTL=15m
+REFRESH_TOKEN_TTL=30d
+CLIENT_URL=http://localhost:3000
+CLOUDINARY_CLOUD_NAME=
+CLOUDINARY_API_KEY=
+CLOUDINARY_API_SECRET=
+RATE_LIMIT_AUTH_PER_MIN=10
+ENABLE_SWAGGER=true
+```
+
+**`apps/web/.env.local`**
+
+```
+NEXT_PUBLIC_API_URL=http://localhost:4000
+NEXT_PUBLIC_SOCKET_URL=http://localhost:4000
+NEXT_PUBLIC_APP_NAME="Team Hub"
+```
+
+Generate JWT secrets with `node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"`. The API's env is Zod-validated at boot — wrong types or missing required keys halt startup with a clear error.
+
+---
+
+## Known Limitations
+
+Honest list of what's deliberately out of scope, deferred, or worked around:
+
+- **Socket.io transport in production is polling-only.** Next.js HTTP rewrites don't reliably proxy WebSocket upgrade handshakes through Railway, so real-time events arrive within ~1 second instead of instantly. Local dev still uses WebSocket.
+- **No email delivery.** Invitation emails fall back to a console log when `SMTP_*` env vars aren't set. Wiring a real provider (Brevo, Sendgrid free tier) would activate Nodemailer with no code changes.
+- **No PWA / offline support.** App requires a network connection — no service worker, no offline queue.
+- **Backend tests are minimal.** Auth flow + happy-path workspace invite are covered with Node's built-in test runner + supertest; broader coverage is not in scope for the assessment.
+- **No frontend tests.** Manual browser-based testing per the test plan in [`apps/web/.env.example`](apps/web/.env.example) area; no React Testing Library / Playwright.
+- **Avatars are the only Cloudinary upload.** No file attachments on goals or action items (also explicitly out-of-scope).
+- **Comments are flat.** No threaded replies — by design, simpler UI.
+- **Single Postgres instance, single Node server.** Presence map is in-memory, not Redis-backed — fine for one replica, would need a shared store to scale horizontally.
 
 ---
 
