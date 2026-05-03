@@ -11,8 +11,8 @@
     "start": "node src/server.js",
     "lint": "eslint .",
     "test": "node --test --env-file=.env",
-    "db:migrate": "prisma migrate dev",
-    "db:migrate:deploy": "prisma migrate deploy",
+    "db:migrate": "prisma migrate dev && prisma generate",
+    "db:migrate:deploy": "prisma migrate deploy && prisma generate",
     "db:seed": "node --env-file=.env prisma/seed.js",
     "db:generate": "prisma generate",
     "db:studio": "prisma studio"
