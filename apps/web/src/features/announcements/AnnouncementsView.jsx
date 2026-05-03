@@ -12,6 +12,7 @@ import {
   Megaphone,
   MessageCircle,
   MoreHorizontal,
+  Pencil,
   Pin,
   PinOff,
   Plus,
@@ -39,6 +40,21 @@ export const REACTIONS = ['👍', '❤️', '🚀'];
 
 export function apiErrorMessage(err, fallback) {
   return err?.response?.data?.error?.message ?? fallback;
+}
+
+// Strip tags + entities so the list card preview doesn't blow up
+// when the body contains lists or headings — line-clamp on
+// rich-text HTML produces overflow artifacts.
+export function htmlToExcerpt(html) {
+  return html
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/\s+/g, ' ')
+    .trim();
 }
 
 export function formatDate(iso) {
@@ -325,10 +341,9 @@ function AnnouncementCard({ announcement }) {
           </div>
         </div>
 
-        <div
-          className="rt-content line-clamp-3 px-4 pb-4 sm:px-5 sm:pb-5"
-          dangerouslySetInnerHTML={{ __html: announcement.bodyHtml }}
-        />
+        <p className="line-clamp-2 px-4 pb-4 text-sm text-muted-foreground sm:px-5 sm:pb-5">
+          {htmlToExcerpt(announcement.bodyHtml)}
+        </p>
 
         <div className="flex flex-wrap items-center gap-3 border-t bg-muted/20 px-4 py-2 text-xs text-muted-foreground sm:px-5">
           <span className="inline-flex items-center gap-1">
@@ -503,10 +518,10 @@ export function CommentsSection({ announcement }) {
       api.get(`/announcements/${announcement.id}/comments`, { params: { pageSize: 20 } }).then((r) => r.data),
   });
 
-  // Realtime: prepend new comments. Server returns them in createdAt desc.
+  // Realtime: prepend new comments + patch updates / deletes.
   useEffect(() => {
     if (!socket) return undefined;
-    const onComment = (p) => {
+    const onCreated = (p) => {
       if (p.announcementId !== announcement.id) return;
       qc.setQueryData(['comments', announcement.id], (prev) => {
         if (!prev) return prev;
@@ -525,8 +540,39 @@ export function CommentsSection({ announcement }) {
         };
       });
     };
-    socket.on('comment:created', onComment);
-    return () => socket.off('comment:created', onComment);
+    const onUpdated = (p) => {
+      if (p.announcementId !== announcement.id) return;
+      qc.setQueryData(['comments', announcement.id], (prev) =>
+        prev
+          ? { ...prev, data: prev.data.map((c) => (c.id === p.comment.id ? p.comment : c)) }
+          : prev,
+      );
+    };
+    const onDeleted = (p) => {
+      if (p.announcementId !== announcement.id) return;
+      qc.setQueryData(['comments', announcement.id], (prev) =>
+        prev ? { ...prev, data: prev.data.filter((c) => c.id !== p.id) } : prev,
+      );
+      qc.setQueryData(['announcements', workspace.id], (prev) => {
+        if (!prev) return prev;
+        return {
+          ...prev,
+          data: prev.data.map((a) =>
+            a.id === announcement.id
+              ? { ...a, _count: { ...a._count, comments: Math.max(0, (a._count?.comments ?? 1) - 1) } }
+              : a,
+          ),
+        };
+      });
+    };
+    socket.on('comment:created', onCreated);
+    socket.on('comment:updated', onUpdated);
+    socket.on('comment:deleted', onDeleted);
+    return () => {
+      socket.off('comment:created', onCreated);
+      socket.off('comment:updated', onUpdated);
+      socket.off('comment:deleted', onDeleted);
+    };
   }, [socket, announcement.id, qc, workspace.id]);
 
   const comments = commentsQuery.data?.data ?? [];
@@ -554,19 +600,12 @@ export function CommentsSection({ announcement }) {
       ) : (
         <ul ref={threadRef} className="space-y-2.5">
           {comments.map((c) => (
-            <li key={c.id} className="flex items-start gap-2.5">
-              <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-muted text-xs font-medium uppercase">
-                {c.author?.name?.[0] ?? '?'}
-              </div>
-              <div className="min-w-0 flex-1 rounded-md bg-muted/40 px-3 py-2">
-                <p className="text-xs text-muted-foreground">
-                  <span className="font-medium text-foreground">{c.author?.name ?? 'Unknown'}</span>
-                  {' · '}
-                  {formatDate(c.createdAt)}
-                </p>
-                <p className="mt-0.5 whitespace-pre-wrap text-sm">{c.body}</p>
-              </div>
-            </li>
+            <CommentItem
+              key={c.id}
+              comment={c}
+              announcementId={announcement.id}
+              workspaceId={workspace.id}
+            />
           ))}
         </ul>
       )}
@@ -584,6 +623,132 @@ export function CommentsSection({ announcement }) {
         members={membersQuery.data ?? []}
       />
     </div>
+  );
+}
+
+function CommentItem({ comment, announcementId, workspaceId }) {
+  const qc = useQueryClient();
+  const { data: me } = useMe();
+  const { isAdmin } = useWorkspace();
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(comment.body);
+  const isAuthor = me?.id === comment.authorId;
+  const canEdit = isAuthor;
+  const canDelete = isAuthor || isAdmin;
+
+  const update = useMutation({
+    mutationFn: () => api.patch(`/comments/${comment.id}`, { body: draft.trim() }).then((r) => r.data.comment),
+    onSuccess: (updated) => {
+      qc.setQueryData(['comments', announcementId], (prev) =>
+        prev ? { ...prev, data: prev.data.map((c) => (c.id === updated.id ? updated : c)) } : prev,
+      );
+      setEditing(false);
+    },
+    onError: (err) => toast.error(apiErrorMessage(err, 'Failed to update comment')),
+  });
+
+  const remove = useMutation({
+    mutationFn: () => api.delete(`/comments/${comment.id}`),
+    onSuccess: () => {
+      qc.setQueryData(['comments', announcementId], (prev) =>
+        prev ? { ...prev, data: prev.data.filter((c) => c.id !== comment.id) } : prev,
+      );
+      qc.setQueryData(['announcements', workspaceId], (prev) => {
+        if (!prev) return prev;
+        return {
+          ...prev,
+          data: prev.data.map((a) =>
+            a.id === announcementId
+              ? { ...a, _count: { ...a._count, comments: Math.max(0, (a._count?.comments ?? 1) - 1) } }
+              : a,
+          ),
+        };
+      });
+    },
+    onError: (err) => toast.error(apiErrorMessage(err, 'Failed to delete comment')),
+  });
+
+  return (
+    <li className="group flex items-start gap-2.5">
+      <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-muted text-xs font-medium uppercase">
+        {comment.author?.name?.[0] ?? '?'}
+      </div>
+      <div className="min-w-0 flex-1 rounded-md bg-muted/40 px-3 py-2">
+        <div className="flex items-start justify-between gap-2">
+          <p className="text-xs text-muted-foreground">
+            <span className="font-medium text-foreground">{comment.author?.name ?? 'Unknown'}</span>
+            {' · '}
+            {formatDate(comment.createdAt)}
+          </p>
+          {(canEdit || canDelete) && !editing && (
+            <div className="flex items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100">
+              {canEdit && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setDraft(comment.body);
+                    setEditing(true);
+                  }}
+                  className="inline-flex h-5 w-5 items-center justify-center rounded-sm text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+                  aria-label="Edit comment"
+                >
+                  <Pencil className="h-3 w-3" />
+                </button>
+              )}
+              {canDelete && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (confirm('Delete this comment?')) remove.mutate();
+                  }}
+                  className="inline-flex h-5 w-5 items-center justify-center rounded-sm text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+                  aria-label="Delete comment"
+                >
+                  <Trash2 className="h-3 w-3" />
+                </button>
+              )}
+            </div>
+          )}
+        </div>
+
+        {editing ? (
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              if (!draft.trim() || draft.trim() === comment.body) {
+                setEditing(false);
+                return;
+              }
+              update.mutate();
+            }}
+            className="mt-1 space-y-1.5"
+          >
+            <Textarea
+              value={draft}
+              onChange={(e) => setDraft(e.target.value)}
+              rows={2}
+              autoFocus
+              className="bg-card"
+            />
+            <div className="flex items-center gap-1.5">
+              <Button type="submit" size="sm" loading={update.isPending} disabled={!draft.trim()}>
+                Save
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant="ghost"
+                onClick={() => setEditing(false)}
+              >
+                Cancel
+              </Button>
+            </div>
+          </form>
+        ) : (
+          <p className="mt-0.5 whitespace-pre-wrap text-sm">{comment.body}</p>
+        )}
+      </div>
+    </li>
   );
 }
 

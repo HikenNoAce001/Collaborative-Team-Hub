@@ -4,6 +4,7 @@ import {
   updateAnnouncementSchema,
   reactionSchema,
   createCommentSchema,
+  updateCommentSchema,
   commentsQuery,
   listAnnouncementsQuery,
 } from '@team-hub/schemas';
@@ -100,3 +101,39 @@ announcementsRouter.post(
   validate(createCommentSchema),
   ctrl.createComment,
 );
+
+async function loadCommentAndMembership(req, _res, next) {
+  try {
+    const comment = await prisma.comment.findUnique({
+      where: { id: req.params.commentId },
+      select: {
+        id: true,
+        authorId: true,
+        announcementId: true,
+        announcement: { select: { workspaceId: true } },
+      },
+    });
+    if (!comment) return next(NotFound('Comment not found'));
+    const workspaceId = comment.announcement.workspaceId;
+    const member = await prisma.workspaceMember.findUnique({
+      where: { workspaceId_userId: { workspaceId, userId: req.user.id } },
+    });
+    if (!member) return next(Forbidden('Not a workspace member'));
+    req.workspaceMember = member;
+    req.commentContext = { workspaceId, announcementId: comment.announcementId };
+    next();
+  } catch (err) {
+    next(err);
+  }
+}
+
+// /comments/:commentId — author-scoped edit/delete.
+export const commentsRouter = Router();
+commentsRouter.use(requireAuth);
+commentsRouter.patch(
+  '/:commentId',
+  loadCommentAndMembership,
+  validate(updateCommentSchema),
+  ctrl.updateComment,
+);
+commentsRouter.delete('/:commentId', loadCommentAndMembership, ctrl.deleteComment);

@@ -35,13 +35,20 @@ export async function remove(req, res) {
 }
 
 export async function addReaction(req, res) {
-  const reaction = await service.addReaction(req.params.id, req.user.id, req.body.emoji);
+  const { reaction, notification } = await service.addReaction(
+    req.params.id,
+    req.user.id,
+    req.body.emoji,
+  );
   res.status(201).json({ reaction });
   emitToWorkspace(req.announcement.workspaceId, 'reaction:added', {
     workspaceId: req.announcement.workspaceId,
     announcementId: req.announcement.id,
     reaction,
   });
+  if (notification) {
+    emitToUser(notification.recipientId, 'notification:created', { notification });
+  }
 }
 
 export async function removeReaction(req, res) {
@@ -76,4 +83,25 @@ export async function createComment(req, res) {
   for (const n of notifications) {
     emitToUser(n.recipientId, 'notification:created', { notification: n });
   }
+}
+
+export async function updateComment(req, res) {
+  const comment = await service.updateComment(req.params.commentId, req.user.id, req.body.body);
+  res.json({ comment });
+  emitToWorkspace(req.commentContext.workspaceId, 'comment:updated', {
+    workspaceId: req.commentContext.workspaceId,
+    announcementId: comment.announcementId,
+    comment,
+  });
+}
+
+export async function deleteComment(req, res) {
+  const isAdmin = req.workspaceMember?.role === 'ADMIN';
+  await service.deleteComment(req.params.commentId, req.user.id, isAdmin);
+  res.status(204).end();
+  emitToWorkspace(req.commentContext.workspaceId, 'comment:deleted', {
+    workspaceId: req.commentContext.workspaceId,
+    announcementId: req.commentContext.announcementId,
+    id: req.params.commentId,
+  });
 }

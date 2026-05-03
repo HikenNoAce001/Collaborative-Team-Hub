@@ -1,5 +1,5 @@
 import { prisma } from '../../db.js';
-import { NotFound } from '../../lib/errors.js';
+import { Forbidden, NotFound } from '../../lib/errors.js';
 import { sanitizeRichText } from '../../lib/sanitize.js';
 import { audit } from '../audit/service.js';
 
@@ -135,22 +135,56 @@ export async function deleteAnnouncement(announcementId, actorId) {
 
 export async function addReaction(announcementId, userId, emoji) {
   try {
-    return await prisma.reaction.create({
+    const reaction = await prisma.reaction.create({
       data: { announcementId, userId, emoji },
       select: { id: true, emoji: true, userId: true, createdAt: true },
     });
+    const notification = await maybeNotifyReaction(announcementId, userId, emoji);
+    return { reaction, notification };
   } catch (err) {
     if (err.code === 'P2002') {
-      // Already reacted with this emoji — idempotent: return the existing row.
-      return prisma.reaction.findUnique({
+      // Already reacted with this emoji — idempotent: return the existing row,
+      // skip notification (the author was already pinged).
+      const existing = await prisma.reaction.findUnique({
         where: {
           announcementId_userId_emoji: { announcementId, userId, emoji },
         },
         select: { id: true, emoji: true, userId: true, createdAt: true },
       });
+      return { reaction: existing, notification: null };
     }
     throw err;
   }
+}
+
+async function maybeNotifyReaction(announcementId, reactorId, emoji) {
+  const announcement = await prisma.announcement.findUnique({
+    where: { id: announcementId },
+    select: {
+      id: true,
+      title: true,
+      authorId: true,
+      workspaceId: true,
+    },
+  });
+  if (!announcement || announcement.authorId === reactorId) return null;
+  const reactor = await prisma.user.findUnique({
+    where: { id: reactorId },
+    select: { id: true, name: true, avatarUrl: true },
+  });
+  return prisma.notification.create({
+    data: {
+      recipientId: announcement.authorId,
+      kind: 'reaction',
+      payload: {
+        workspaceId: announcement.workspaceId,
+        announcementId: announcement.id,
+        emoji,
+        actor: reactor,
+        preview: `${emoji} on “${announcement.title}”`,
+      },
+    },
+  });
 }
 
 export async function removeReaction(announcementId, userId, emoji) {
@@ -221,4 +255,49 @@ export async function createComment(announcementId, workspaceId, body, authorId)
     }
     return { comment, notifications };
   });
+}
+
+const commentSelect = {
+  id: true,
+  announcementId: true,
+  authorId: true,
+  body: true,
+  mentionUserIds: true,
+  createdAt: true,
+  author: { select: { id: true, name: true, avatarUrl: true } },
+};
+
+export async function getCommentForAuth(commentId) {
+  const comment = await prisma.comment.findUnique({
+    where: { id: commentId },
+    select: { id: true, authorId: true, announcementId: true, announcement: { select: { workspaceId: true } } },
+  });
+  if (!comment) throw NotFound('Comment not found');
+  return comment;
+}
+
+export async function updateComment(commentId, userId, body) {
+  const comment = await prisma.comment.findUnique({
+    where: { id: commentId },
+    select: { authorId: true },
+  });
+  if (!comment) throw NotFound('Comment not found');
+  if (comment.authorId !== userId) throw Forbidden('Only the author can edit this comment');
+  return prisma.comment.update({
+    where: { id: commentId },
+    data: { body },
+    select: commentSelect,
+  });
+}
+
+export async function deleteComment(commentId, userId, isAdmin) {
+  const comment = await prisma.comment.findUnique({
+    where: { id: commentId },
+    select: { authorId: true },
+  });
+  if (!comment) throw NotFound('Comment not found');
+  if (comment.authorId !== userId && !isAdmin) {
+    throw Forbidden('Only the author or an admin can delete this comment');
+  }
+  await prisma.comment.delete({ where: { id: commentId } });
 }

@@ -28,6 +28,7 @@ import {
 import {
   workspaceAnnouncementsRouter,
   announcementsRouter,
+  commentsRouter,
 } from './modules/announcements/router.js';
 import { workspaceAuditRouter } from './modules/audit/router.js';
 import { notificationsRouter } from './modules/notifications/router.js';
@@ -97,6 +98,7 @@ export function createApp() {
   app.use('/milestones', milestonesRouter);
   app.use('/action-items', actionItemsRouter);
   app.use('/announcements', announcementsRouter);
+  app.use('/comments', commentsRouter);
   app.use('/notifications', notificationsRouter);
 
   app.use(notFoundHandler);

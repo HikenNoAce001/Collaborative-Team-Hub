@@ -29,6 +29,10 @@ export const createCommentSchema = z.object({
   mentionUserIds: z.array(cuid).max(50).default([]),
 });
 
+export const updateCommentSchema = z.object({
+  body: z.string().trim().min(1).max(2000),
+});
+
 export const commentsQuery = z.object({
   before: cuid.optional(),
   pageSize: z.coerce.number().int().positive().max(100).default(20),

@@ -32,6 +32,12 @@ function describe(n) {
       preview: n.payload?.preview ?? '',
     };
   }
+  if (n.kind === 'reaction') {
+    return {
+      title: `${actor} reacted to your post`,
+      preview: n.payload?.preview ?? '',
+    };
+  }
   return { title: `${actor} · ${n.kind}`, preview: n.payload?.preview ?? '' };
 }
 
@@ -129,7 +135,7 @@ export default function NotificationBell() {
 
   function navigateTo(n) {
     setOpen(false);
-    if (n.kind === 'mention') {
+    if (n.kind === 'mention' || n.kind === 'reaction') {
       const announcementId = n.payload?.announcementId;
       if (announcementId) {
         router.push(`/w/${workspace.id}/announcements/${announcementId}`);
