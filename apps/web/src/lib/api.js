@@ -1,7 +1,10 @@
 import axios from 'axios';
 
+// Same-origin via Next.js rewrites in next.config.mjs — keeps auth cookies on the
+// web's own origin since Railway's *.up.railway.app subdomains are separate
+// registrable domains and can't share cookies cross-site.
 const api = axios.create({
-  baseURL: process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000',
+  baseURL: '/api',
   withCredentials: true,
   headers: { 'Content-Type': 'application/json' },
 });

@@ -10,7 +10,14 @@ let socket = null;
  */
 function getSocket() {
   if (!socket) {
-    socket = io(process.env.NEXT_PUBLIC_SOCKET_URL || 'http://localhost:4000', {
+    // Connect to same origin so the auth cookie (set on the web origin) is
+    // included in the WebSocket handshake. Next.js rewrites /socket.io/* to
+    // the API server-side.
+    const url =
+      typeof window !== 'undefined'
+        ? window.location.origin
+        : process.env.NEXT_PUBLIC_SOCKET_URL || 'http://localhost:4000';
+    socket = io(url, {
       withCredentials: true,
       autoConnect: false,
     });
