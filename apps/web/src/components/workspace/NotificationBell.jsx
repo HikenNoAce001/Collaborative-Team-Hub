@@ -128,11 +128,14 @@ export default function NotificationBell() {
   const [listRef] = useAutoAnimate();
 
   function navigateTo(n) {
-    const wsId = n.payload?.workspaceId;
-    if (n.kind === 'mention' && wsId) {
-      router.push(`/w/${wsId}/announcements`);
-    }
     setOpen(false);
+    if (n.kind === 'mention') {
+      const announcementId = n.payload?.announcementId;
+      const target = announcementId
+        ? `/w/${workspace.id}/announcements#${announcementId}`
+        : `/w/${workspace.id}/announcements`;
+      router.push(target);
+    }
   }
 
   return (

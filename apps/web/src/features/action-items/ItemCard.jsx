@@ -50,9 +50,8 @@ export default function ItemCard({ item, onClick, draggable = true }) {
     >
       <button
         type="button"
-        onPointerDown={(e) => e.stopPropagation()}
         onClick={onClick}
-        className="block w-full text-left"
+        className="block w-full cursor-pointer text-left"
       >
         <p className="line-clamp-2 font-medium">{item.title}</p>
         {item.description && (
