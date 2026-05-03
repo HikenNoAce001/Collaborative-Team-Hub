@@ -68,8 +68,7 @@ export default function KanbanBoard({ itemsByStatus, onMove, onCardClick }) {
         {STATUS_COLUMNS.map((col) => (
           <Column
             key={col.key}
-            id={col.key}
-            label={col.label}
+            column={col}
             items={itemsByStatus[col.key] ?? []}
             onCardClick={onCardClick}
           />
@@ -82,19 +81,25 @@ export default function KanbanBoard({ itemsByStatus, onMove, onCardClick }) {
   );
 }
 
-function Column({ id, label, items, onCardClick }) {
-  const { setNodeRef, isOver } = useDroppable({ id });
+function Column({ column, items, onCardClick }) {
+  const { setNodeRef, isOver } = useDroppable({ id: column.key });
   return (
     <div
       ref={setNodeRef}
       className={cn(
-        'flex min-h-32 flex-col rounded-lg border bg-muted/30 p-2.5 transition-colors',
-        isOver && 'border-primary/50 bg-primary/5',
+        'flex min-h-32 flex-col rounded-lg border p-2.5 transition-colors',
+        column.columnCls,
+        isOver && 'ring-2 ring-primary/40',
       )}
     >
-      <div className="mb-2 flex items-center justify-between px-1 text-xs font-medium text-muted-foreground">
-        <span className="uppercase tracking-wide">{label}</span>
-        <span className="rounded-full bg-card px-1.5 py-0.5 text-[10px]">{items.length}</span>
+      <div className={cn('mb-2 flex items-center justify-between px-1 text-xs font-semibold', column.headerCls)}>
+        <span className="inline-flex items-center gap-1.5 uppercase tracking-wide">
+          <span className={cn('h-1.5 w-1.5 rounded-full', column.dotCls)} aria-hidden />
+          {column.label}
+        </span>
+        <span className={cn('rounded-full px-1.5 py-0.5 text-[10px] font-medium', column.countCls)}>
+          {items.length}
+        </span>
       </div>
       <SortableContext items={items.map((i) => i.id)} strategy={verticalListSortingStrategy}>
         <div className="flex flex-1 flex-col gap-2">
