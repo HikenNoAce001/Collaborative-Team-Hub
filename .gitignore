@@ -45,7 +45,7 @@ Desktop.ini
 *.swp
 *.swo
 
-# Prisma generated client (per ARCHITECTURE.md §4 — output to src/generated)
+# Prisma generated client
 apps/api/src/generated/
 
 # Misc
@@ -55,7 +55,19 @@ apps/api/src/generated/
 .eslintcache
 .parcel-cache/
 
-# Local-only dev log (per ROADMAP.md)
+# Internal docs (kept local only)
+ARCHITECTURE.md
+Claude.md
+CLAUDE.md
+COMPLIANCE.md
+DEPLOY.md
+HANDOFF.md
+PROGRESS.md
+ROADMAP.md
+TESTING.md
+design.md
+requirements.md
+example_readme.md
 daily-log.md
 tmp/
 FredoCloud_Intern_Assignment.pdf
