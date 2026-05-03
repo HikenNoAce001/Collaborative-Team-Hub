@@ -70,7 +70,7 @@ export default function Shell({ workspace, members, children }) {
   }, [socket, workspace.id]);
 
   async function handleLogout() {
-    try { await api.post('/auth/logout'); } finally { router.push('/login'); }
+    try { await api.post('/auth/logout'); } finally { router.push('/'); }
   }
 
   function openPalette() {

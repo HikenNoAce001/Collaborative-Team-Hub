@@ -6,7 +6,7 @@ export default function Home() {
   return (
     <>
       <AuroraBackground />
-      <div className="fixed right-4 top-4 z-50">
+      <div className="relative z-10 flex justify-end px-4 pt-4 sm:px-6">
         <ThemeToggle />
       </div>
       <LandingPage />

@@ -26,7 +26,7 @@ export default function WorkspacesPage() {
 
   async function handleLogout() {
     await api.post('/auth/logout');
-    router.push('/login');
+    router.push('/');
   }
 
   return (
