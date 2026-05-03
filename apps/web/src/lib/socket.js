@@ -51,7 +51,7 @@ export function useSocket(workspaceId) {
 
   useEffect(() => {
     const s = getSocket();
-    if (!workspaceId || !s.connected) return;
+    if (!workspaceId || !isConnected) return undefined;
 
     if (currentRoom.current && currentRoom.current !== workspaceId) {
       s.emit('workspace:leave', { workspaceId: currentRoom.current });
@@ -66,7 +66,7 @@ export function useSocket(workspaceId) {
         currentRoom.current = null;
       }
     };
-  }, [workspaceId]);
+  }, [workspaceId, isConnected]);
 
   return { socket: isConnected ? getSocket() : null, isConnected };
 }

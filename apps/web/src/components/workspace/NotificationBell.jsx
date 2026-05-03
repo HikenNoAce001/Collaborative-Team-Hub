@@ -132,13 +132,7 @@ export default function NotificationBell() {
     if (n.kind === 'mention') {
       const announcementId = n.payload?.announcementId;
       if (announcementId) {
-        const domId = `ann-${announcementId}`;
-        const el = document.getElementById(domId);
-        if (el) {
-          el.scrollIntoView({ behavior: 'smooth', block: 'start' });
-          return;
-        }
-        router.push(`/w/${workspace.id}/announcements#${domId}`);
+        router.push(`/w/${workspace.id}/announcements/${announcementId}`);
         return;
       }
       router.push(`/w/${workspace.id}/announcements`);

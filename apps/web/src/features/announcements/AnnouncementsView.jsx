@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useForm, Controller } from 'react-hook-form';
@@ -34,13 +35,13 @@ import { Card, CardContent } from '@/components/ui/Card';
 import { cn } from '@/lib/cn';
 import Editor from './Editor';
 
-const REACTIONS = ['👍', '❤️', '🚀'];
+export const REACTIONS = ['👍', '❤️', '🚀'];
 
-function apiErrorMessage(err, fallback) {
+export function apiErrorMessage(err, fallback) {
   return err?.response?.data?.error?.message ?? fallback;
 }
 
-function formatDate(iso) {
+export function formatDate(iso) {
   return new Date(iso).toLocaleString(undefined, {
     month: 'short',
     day: 'numeric',
@@ -54,7 +55,6 @@ export default function AnnouncementsView() {
   const qc = useQueryClient();
   const { socket } = useSocket(workspace.id);
   const [composerOpen, setComposerOpen] = useState(false);
-  const [expandedId, setExpandedId] = useState(/** @type {string|null} */ (null));
   const [feedRef] = useAutoAnimate();
 
   const listQuery = useQuery({
@@ -162,14 +162,7 @@ export default function AnnouncementsView() {
       ) : (
         <ul ref={feedRef} className="space-y-3">
           {sorted.map((announcement) => (
-            <AnnouncementCard
-              key={announcement.id}
-              announcement={announcement}
-              expanded={expandedId === announcement.id}
-              onToggle={() =>
-                setExpandedId((prev) => (prev === announcement.id ? null : announcement.id))
-              }
-            />
+            <AnnouncementCard key={announcement.id} announcement={announcement} />
           ))}
         </ul>
       )}
@@ -283,50 +276,10 @@ function ComposerDialog({ open, onClose, workspaceId }) {
   );
 }
 
-function AnnouncementCard({ announcement, expanded, onToggle }) {
+function AnnouncementCard({ announcement }) {
   const { workspace, isAdmin } = useWorkspace();
-  const { data: me } = useMe();
   const qc = useQueryClient();
-  const { socket } = useSocket(workspace.id);
   const [menuOpen, setMenuOpen] = useState(false);
-
-  const detailQuery = useQuery({
-    queryKey: ['announcement', announcement.id],
-    queryFn: () => api.get(`/announcements/${announcement.id}`).then((r) => r.data.announcement),
-    enabled: expanded,
-  });
-
-  // Realtime reaction patches against the detail cache.
-  useEffect(() => {
-    if (!socket || !expanded) return undefined;
-    const onAdded = (p) => {
-      if (p.announcementId !== announcement.id) return;
-      qc.setQueryData(['announcement', announcement.id], (prev) => {
-        if (!prev) return prev;
-        if (prev.reactions?.some((r) => r.id === p.reaction.id)) return prev;
-        return { ...prev, reactions: [...(prev.reactions ?? []), p.reaction] };
-      });
-    };
-    const onRemoved = (p) => {
-      if (p.announcementId !== announcement.id) return;
-      qc.setQueryData(['announcement', announcement.id], (prev) =>
-        prev
-          ? {
-              ...prev,
-              reactions: (prev.reactions ?? []).filter(
-                (r) => !(r.userId === p.userId && r.emoji === p.emoji),
-              ),
-            }
-          : prev,
-      );
-    };
-    socket.on('reaction:added', onAdded);
-    socket.on('reaction:removed', onRemoved);
-    return () => {
-      socket.off('reaction:added', onAdded);
-      socket.off('reaction:removed', onRemoved);
-    };
-  }, [socket, expanded, announcement.id, qc]);
 
   const togglePin = useMutation({
     mutationFn: () => api.patch(`/announcements/${announcement.id}`, { pinned: !announcement.pinned }),
@@ -345,143 +298,119 @@ function AnnouncementCard({ announcement, expanded, onToggle }) {
     onError: (err) => toast.error(apiErrorMessage(err, 'Failed to delete')),
   });
 
-  const detail = detailQuery.data;
-  const reactionsByEmoji = useMemo(() => {
-    /** @type {Record<string, {count:number, mine:boolean}>} */
-    const map = {};
-    (detail?.reactions ?? []).forEach((r) => {
-      map[r.emoji] ??= { count: 0, mine: false };
-      map[r.emoji].count += 1;
-      if (me && r.userId === me.id) map[r.emoji].mine = true;
-    });
-    return map;
-  }, [detail, me]);
+  const detailHref = `/w/${workspace.id}/announcements/${announcement.id}`;
 
   return (
-    <Card id={`ann-${announcement.id}`} className={cn(announcement.pinned && 'border-primary/40')}>
-      <div className="flex items-start gap-3 p-4 sm:p-5">
-        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-muted text-sm font-medium uppercase">
-          {announcement.author?.name?.[0] ?? '?'}
-        </div>
-        <div className="min-w-0 flex-1">
-          <div className="flex flex-wrap items-center gap-2">
-            <h2 className="text-base font-semibold tracking-tight">{announcement.title}</h2>
-            {announcement.pinned && (
-              <Badge tone="primary">
-                <Pin className="h-3 w-3" /> Pinned
-              </Badge>
-            )}
+    <Card
+      id={`ann-${announcement.id}`}
+      className={cn('relative transition-shadow hover:shadow-md', announcement.pinned && 'border-primary/40')}
+    >
+      <Link href={detailHref} className="block focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background">
+        <div className="flex items-start gap-3 p-4 sm:p-5">
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-muted text-sm font-medium uppercase">
+            {announcement.author?.name?.[0] ?? '?'}
           </div>
-          <p className="mt-0.5 text-xs text-muted-foreground">
-            {announcement.author?.name ?? 'Unknown'} · {formatDate(announcement.createdAt)}
-          </p>
+          <div className="min-w-0 flex-1">
+            <div className="flex flex-wrap items-center gap-2">
+              <h2 className="text-base font-semibold tracking-tight">{announcement.title}</h2>
+              {announcement.pinned && (
+                <Badge tone="primary">
+                  <Pin className="h-3 w-3" /> Pinned
+                </Badge>
+              )}
+            </div>
+            <p className="mt-0.5 text-xs text-muted-foreground">
+              {announcement.author?.name ?? 'Unknown'} · {formatDate(announcement.createdAt)}
+            </p>
+          </div>
         </div>
-        {isAdmin && (
-          <div className="relative">
-            <Button
-              variant="ghost"
-              size="icon"
-              aria-label="Post actions"
-              onClick={() => setMenuOpen((v) => !v)}
-            >
-              <MoreHorizontal className="h-4 w-4" />
-            </Button>
-            {menuOpen && (
-              <>
+
+        <div
+          className="rt-content line-clamp-3 px-4 pb-4 sm:px-5 sm:pb-5"
+          dangerouslySetInnerHTML={{ __html: announcement.bodyHtml }}
+        />
+
+        <div className="flex flex-wrap items-center gap-3 border-t bg-muted/20 px-4 py-2 text-xs text-muted-foreground sm:px-5">
+          <span className="inline-flex items-center gap-1">
+            <Smile className="h-3.5 w-3.5" />
+            {announcement._count?.reactions ?? 0}
+          </span>
+          <span className="inline-flex items-center gap-1">
+            <MessageCircle className="h-3.5 w-3.5" />
+            {announcement._count?.comments ?? 0}
+          </span>
+          <span className="ml-auto font-medium text-primary">Open →</span>
+        </div>
+      </Link>
+
+      {isAdmin && (
+        <div className="absolute right-3 top-3">
+          <Button
+            variant="ghost"
+            size="icon"
+            aria-label="Post actions"
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              setMenuOpen((v) => !v);
+            }}
+          >
+            <MoreHorizontal className="h-4 w-4" />
+          </Button>
+          {menuOpen && (
+            <>
+              <button
+                type="button"
+                aria-hidden
+                onClick={(e) => {
+                  e.preventDefault();
+                  setMenuOpen(false);
+                }}
+                className="fixed inset-0 z-10"
+              />
+              <div className="absolute right-0 top-full z-20 mt-1 w-44 rounded-md border bg-popover p-1 text-sm shadow-md">
                 <button
                   type="button"
-                  aria-hidden
-                  onClick={() => setMenuOpen(false)}
-                  className="fixed inset-0 z-10"
-                />
-                <div className="absolute right-0 top-full z-20 mt-1 w-44 rounded-md border bg-popover p-1 text-sm shadow-md">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setMenuOpen(false);
-                      togglePin.mutate();
-                    }}
-                    className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-left hover:bg-accent"
-                  >
-                    {announcement.pinned ? (
-                      <>
-                        <PinOff className="h-3.5 w-3.5" /> Unpin
-                      </>
-                    ) : (
-                      <>
-                        <Pin className="h-3.5 w-3.5" /> Pin to top
-                      </>
-                    )}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setMenuOpen(false);
-                      if (confirm('Delete this announcement? This cannot be undone.')) {
-                        remove.mutate();
-                      }
-                    }}
-                    className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-left text-destructive hover:bg-destructive/10"
-                  >
-                    <Trash2 className="h-3.5 w-3.5" /> Delete
-                  </button>
-                </div>
-              </>
-            )}
-          </div>
-        )}
-      </div>
-
-      <div
-        className="rt-content px-4 pb-4 sm:px-5 sm:pb-5"
-        dangerouslySetInnerHTML={{ __html: announcement.bodyHtml }}
-      />
-
-      <div className="flex flex-wrap items-center gap-3 border-t bg-muted/20 px-4 py-2 text-xs text-muted-foreground sm:px-5">
-        <button
-          type="button"
-          onClick={onToggle}
-          className="inline-flex items-center gap-1 rounded-sm px-1.5 py-1 hover:bg-accent hover:text-accent-foreground"
-          aria-expanded={expanded}
-        >
-          <Smile className="h-3.5 w-3.5" />
-          {announcement._count?.reactions ?? 0}
-        </button>
-        <button
-          type="button"
-          onClick={onToggle}
-          className="inline-flex items-center gap-1 rounded-sm px-1.5 py-1 hover:bg-accent hover:text-accent-foreground"
-          aria-expanded={expanded}
-        >
-          <MessageCircle className="h-3.5 w-3.5" />
-          {announcement._count?.comments ?? 0} {expanded ? 'hide' : 'view'}
-        </button>
-      </div>
-
-      {expanded && (
-        <div className="border-t px-4 py-3 sm:px-5">
-          {detailQuery.isLoading ? (
-            <p className="text-xs text-muted-foreground">Loading…</p>
-          ) : detailQuery.isError ? (
-            <p className="text-xs text-destructive">Failed to load reactions.</p>
-          ) : (
-            <ReactionsBar
-              announcementId={announcement.id}
-              reactionsByEmoji={reactionsByEmoji}
-            />
+                  onClick={(e) => {
+                    e.preventDefault();
+                    setMenuOpen(false);
+                    togglePin.mutate();
+                  }}
+                  className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-left hover:bg-accent"
+                >
+                  {announcement.pinned ? (
+                    <>
+                      <PinOff className="h-3.5 w-3.5" /> Unpin
+                    </>
+                  ) : (
+                    <>
+                      <Pin className="h-3.5 w-3.5" /> Pin to top
+                    </>
+                  )}
+                </button>
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    setMenuOpen(false);
+                    if (confirm('Delete this announcement? This cannot be undone.')) {
+                      remove.mutate();
+                    }
+                  }}
+                  className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-left text-destructive hover:bg-destructive/10"
+                >
+                  <Trash2 className="h-3.5 w-3.5" /> Delete
+                </button>
+              </div>
+            </>
           )}
-
-          <CommentsSection
-            announcement={announcement}
-            members={[]}
-          />
         </div>
       )}
     </Card>
   );
 }
 
-function ReactionsBar({ announcementId, reactionsByEmoji }) {
+export function ReactionsBar({ announcementId, reactionsByEmoji }) {
   const qc = useQueryClient();
   const { workspace } = useWorkspace();
   const { data: me } = useMe();
@@ -557,7 +486,7 @@ function ReactionsBar({ announcementId, reactionsByEmoji }) {
   );
 }
 
-function CommentsSection({ announcement }) {
+export function CommentsSection({ announcement }) {
   const { workspace } = useWorkspace();
   const qc = useQueryClient();
   const { socket } = useSocket(workspace.id);
