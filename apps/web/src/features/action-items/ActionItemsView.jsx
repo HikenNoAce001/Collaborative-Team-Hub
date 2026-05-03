@@ -205,7 +205,11 @@ export default function ActionItemsView() {
           onMove={(itemId, _from, toStatus) => moveMutation.mutate({ itemId, toStatus })}
         />
       ) : (
-        <ListView items={items} onClick={(item) => setEditingItem(item)} />
+        <ListView
+          items={items}
+          onClick={(item) => setEditingItem(item)}
+          onStatusChange={(itemId, toStatus) => moveMutation.mutate({ itemId, toStatus })}
+        />
       )}
 
       <ItemFormDialog

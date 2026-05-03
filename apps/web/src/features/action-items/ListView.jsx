@@ -1,10 +1,11 @@
 'use client';
 
-import { Calendar } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
+import { Calendar, Check, ChevronDown } from 'lucide-react';
 import Badge from '@/components/ui/Badge';
 import EmptyState from '@/components/ui/EmptyState';
 import { cn } from '@/lib/cn';
-import { PRIORITY_TONE, STATUS_TONE } from './constants';
+import { PRIORITY_TONE, STATUS_COLUMNS } from './constants';
 
 function formatDue(iso) {
   if (!iso) return null;
@@ -17,9 +18,13 @@ function isOverdue(iso, status) {
 }
 
 /**
- * @param {{ items: any[], onClick: (item: any) => void }} props
+ * @param {{
+ *   items: any[],
+ *   onClick: (item: any) => void,
+ *   onStatusChange?: (itemId: string, toStatus: string) => void,
+ * }} props
  */
-export default function ListView({ items, onClick }) {
+export default function ListView({ items, onClick, onStatusChange }) {
   if (items.length === 0) {
     return <EmptyState title="No items" description="Create one to get started." />;
   }
@@ -52,9 +57,10 @@ export default function ListView({ items, onClick }) {
                   )}
                 </td>
                 <td className="hidden px-3 py-2.5 sm:table-cell">
-                  <Badge tone={STATUS_TONE[item.status]}>
-                    {item.status.replace('_', ' ').toLowerCase()}
-                  </Badge>
+                  <StatusPicker
+                    status={item.status}
+                    onChange={(next) => onStatusChange?.(item.id, next)}
+                  />
                 </td>
                 <td className="hidden px-3 py-2.5 sm:table-cell">
                   <Badge tone={PRIORITY_TONE[item.priority]}>{item.priority.toLowerCase()}</Badge>
@@ -82,6 +88,74 @@ export default function ListView({ items, onClick }) {
           })}
         </tbody>
       </table>
+    </div>
+  );
+}
+
+/**
+ * Click the status pill to swap status without opening the edit dialog.
+ * Stops row-click propagation so the dropdown doesn't fight the row's onClick.
+ *
+ * @param {{ status: string, onChange: (next: string) => void }} props
+ */
+function StatusPicker({ status, onChange }) {
+  const [open, setOpen] = useState(false);
+  const wrapperRef = useRef(/** @type {HTMLDivElement|null} */ (null));
+  const current = STATUS_COLUMNS.find((c) => c.key === status) ?? STATUS_COLUMNS[0];
+
+  useEffect(() => {
+    if (!open) return undefined;
+    function onDoc(e) {
+      if (wrapperRef.current && !wrapperRef.current.contains(e.target)) setOpen(false);
+    }
+    function onKey(e) {
+      if (e.key === 'Escape') setOpen(false);
+    }
+    document.addEventListener('mousedown', onDoc);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('mousedown', onDoc);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [open]);
+
+  return (
+    <div ref={wrapperRef} className="relative inline-block" onClick={(e) => e.stopPropagation()}>
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className={cn(
+          'inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-xs font-medium transition-colors hover:opacity-90',
+          current.columnCls,
+          current.headerCls,
+        )}
+      >
+        <span className={cn('h-1.5 w-1.5 rounded-full', current.dotCls)} aria-hidden />
+        {current.label}
+        <ChevronDown className="h-3 w-3 opacity-60" />
+      </button>
+      {open && (
+        <div className="absolute left-0 top-full z-20 mt-1 w-40 overflow-hidden rounded-md border bg-popover text-popover-foreground shadow-elevated">
+          {STATUS_COLUMNS.map((opt) => {
+            const active = opt.key === status;
+            return (
+              <button
+                key={opt.key}
+                type="button"
+                onClick={() => {
+                  setOpen(false);
+                  if (opt.key !== status) onChange(opt.key);
+                }}
+                className="flex w-full items-center gap-2 px-3 py-1.5 text-xs hover:bg-accent"
+              >
+                <span className={cn('h-1.5 w-1.5 shrink-0 rounded-full', opt.dotCls)} aria-hidden />
+                <span className="flex-1 text-left">{opt.label}</span>
+                {active && <Check className="h-3 w-3 text-muted-foreground" />}
+              </button>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }
