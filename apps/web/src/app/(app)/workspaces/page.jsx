@@ -5,6 +5,7 @@ import api from '@/lib/api';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { LogOut, Plus } from 'lucide-react';
+import ThemeToggle from '@/components/ThemeToggle';
 
 export default function WorkspacesPage() {
   const router = useRouter();
@@ -40,6 +41,7 @@ export default function WorkspacesPage() {
           )}
         </div>
         <div className="flex items-center gap-2">
+          <ThemeToggle />
           <Link
             href="/workspaces/new"
             className="inline-flex h-9 items-center gap-1.5 rounded-md bg-primary px-3 text-sm font-medium text-primary-foreground shadow transition-colors hover:bg-primary/90"

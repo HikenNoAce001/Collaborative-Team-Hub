@@ -1,4 +1,5 @@
 import AuroraBackground from '@/components/AuroraBackground';
+import ThemeToggle from '@/components/ThemeToggle';
 
 /**
  * Auth route group layout — drops the aurora background behind login/register
@@ -10,6 +11,9 @@ export default function AuthLayout({ children }) {
   return (
     <>
       <AuroraBackground />
+      <div className="fixed right-4 top-4 z-50">
+        <ThemeToggle />
+      </div>
       {children}
     </>
   );
