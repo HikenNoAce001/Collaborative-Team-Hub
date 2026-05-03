@@ -451,4 +451,4 @@ For the frontend, the test plan is manual + browser-based: hit the live URL, log
 
 ## License
 
-© Zobair. All rights reserved.
+All rights reserved.
