@@ -194,7 +194,7 @@ Every state-changing action on goals, action items, announcements, members, and 
 
 - **Node 22** (`node -v`)
 - **pnpm 9** (`corepack enable && corepack prepare pnpm@9.12.1 --activate`)
-- **Docker** (only for the local Postgres container; skip if you have your own)
+- **Docker Desktop** — **must be running** before any `docker compose` / API command. The backend can't connect to a database until the Postgres container is up. (Skip this if you already have Postgres 16 running locally and update `DATABASE_URL` in `apps/api/.env` accordingly.)
 
 ### One-time setup
 
@@ -203,8 +203,9 @@ git clone https://github.com/HikenNoAce001/Collaborative-Team-Hub.git team-hub
 cd team-hub
 pnpm install
 
-# Local Postgres
+# Make sure Docker Desktop is running, then start local Postgres:
 docker compose up -d
+docker compose ps              # confirm `postgres` shows "running"
 
 # API env
 cp apps/api/.env.example apps/api/.env
