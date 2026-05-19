@@ -187,18 +187,33 @@ export default function Shell({ workspace, members, children }) {
 
           {/* User footer */}
           <div className="flex items-center gap-2 border-t px-3 py-2.5">
-            <span
-              className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-semibold text-white"
-              style={{ backgroundImage: 'var(--gradient-primary)' }}
+            <Link
+              href="/profile"
+              className="flex min-w-0 flex-1 items-center gap-2 rounded-md p-1 -m-1 transition-colors hover:bg-accent"
+              aria-label="Edit profile"
             >
-              {initial(me?.name)}
-            </span>
-            <div className="min-w-0 flex-1">
-              <p className="truncate text-xs font-medium">{me?.name ?? '…'}</p>
-              <p className="text-[10px] capitalize text-muted-foreground">
-                {workspace.myRole.toLowerCase()}
-              </p>
-            </div>
+              {me?.avatarUrl ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={me.avatarUrl}
+                  alt=""
+                  className="h-7 w-7 shrink-0 rounded-full object-cover"
+                />
+              ) : (
+                <span
+                  className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-semibold text-white"
+                  style={{ backgroundImage: 'var(--gradient-primary)' }}
+                >
+                  {initial(me?.name)}
+                </span>
+              )}
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-xs font-medium">{me?.name ?? '…'}</p>
+                <p className="text-[10px] capitalize text-muted-foreground">
+                  {workspace.myRole.toLowerCase()}
+                </p>
+              </div>
+            </Link>
             <button
               type="button"
               onClick={handleLogout}

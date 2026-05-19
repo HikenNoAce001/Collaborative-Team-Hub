@@ -4,7 +4,7 @@ import { useQuery } from '@tanstack/react-query';
 import api from '@/lib/api';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { LogOut, Plus } from 'lucide-react';
+import { LogOut, Plus, UserCog } from 'lucide-react';
 import ThemeToggle from '@/components/ThemeToggle';
 
 export default function WorkspacesPage() {
@@ -42,6 +42,13 @@ export default function WorkspacesPage() {
         </div>
         <div className="flex items-center gap-2">
           <ThemeToggle />
+          <Link
+            href="/profile"
+            className="inline-flex h-9 items-center gap-1.5 rounded-md border border-input px-3 text-sm font-medium shadow-sm transition-colors hover:bg-accent hover:text-accent-foreground"
+          >
+            <UserCog className="h-4 w-4" />
+            Profile
+          </Link>
           <Link
             href="/workspaces/new"
             className="inline-flex h-9 items-center gap-1.5 rounded-md bg-primary px-3 text-sm font-medium text-primary-foreground shadow transition-colors hover:bg-primary/90"
