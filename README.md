@@ -208,23 +208,46 @@ pnpm --filter @team-hub/api db:migrate
 pnpm --filter @team-hub/api db:seed:dev
 ```
 
-### Run
+### Run in dev
+
+You can run both services with one command or each one in its own terminal — pick whichever you prefer.
+
+**Option A — both at once (Turbo)**
 
 ```bash
-pnpm dev        # turbo runs both API (:4000) and Web (:3000)
+pnpm dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000), sign in with any seeded user above.
+Turbo starts the API on `http://localhost:4000` and the Web app on `http://localhost:3000`. Logs are interleaved with a service-name prefix.
+
+**Option B — separate terminals**
+
+Terminal 1 — API:
+
+```bash
+pnpm --filter @team-hub/api dev
+# → API listening on http://localhost:4000
+# Health check: curl http://localhost:4000/health
+```
+
+Terminal 2 — Web:
+
+```bash
+pnpm --filter @team-hub/web dev
+# → Next.js on http://localhost:3000
+```
+
+Open [http://localhost:3000](http://localhost:3000) and sign in with any seeded user above. The web app proxies `/api/*` and `/socket.io/*` to the API at the URL set in `apps/web/.env.local`.
 
 ### Useful scripts
 
 ```bash
 pnpm --filter @team-hub/api db:reset           # wipe + migrate + seed (prod data)
 pnpm --filter @team-hub/api db:reset:dev       # wipe + migrate + dev data (richer)
-pnpm --filter @team-hub/api db:studio          # Prisma Studio
-pnpm --filter @team-hub/api dev                # API only
-pnpm --filter @team-hub/web dev                # Web only
-pnpm lint                                      # turbo lint across packages
+pnpm --filter @team-hub/api db:seed             # re-seed without wiping
+pnpm --filter @team-hub/api db:studio           # Prisma Studio at http://localhost:5555
+pnpm --filter @team-hub/api db:migrate          # create/apply migration after schema edits
+pnpm lint                                       # turbo lint across all packages
 ```
 
 ---
