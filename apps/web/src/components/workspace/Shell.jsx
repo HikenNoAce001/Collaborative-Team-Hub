@@ -164,9 +164,18 @@ export default function Shell({ workspace, members, children }) {
               {members.map((m) => (
                 <li key={m.id} className="flex items-center gap-2 px-1">
                   <span className="relative shrink-0">
-                    <span className="flex h-6 w-6 items-center justify-center rounded-full bg-muted text-[10px] font-semibold">
-                      {initial(m.user.name)}
-                    </span>
+                    {m.user.avatarUrl ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={m.user.avatarUrl}
+                        alt=""
+                        className="h-6 w-6 rounded-full object-cover"
+                      />
+                    ) : (
+                      <span className="flex h-6 w-6 items-center justify-center rounded-full bg-muted text-[10px] font-semibold">
+                        {initial(m.user.name)}
+                      </span>
+                    )}
                     <span
                       className={cn(
                         'absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full border-2 border-card',
