@@ -24,7 +24,7 @@ Built with **Express 5** + **Next.js 16** + **Prisma 7** + **Socket.io 4** + **P
 
 ## Demo Login
 
-Open the live URL and sign in with any of the seeded users:
+**Production** — open the live URL and sign in with any of the seeded users:
 
 | Email                          | Password   | Role   |
 | ------------------------------ | ---------- | ------ |
@@ -34,6 +34,17 @@ Open the live URL and sign in with any of the seeded users:
 | `alex.pm@team-hub.test`        | `Demo1234` | Member |
 
 Open two browsers with different accounts to see real-time presence, kanban moves, and notifications sync live.
+
+**Local dev** — the dev seed (`pnpm db:reset:dev`) uses different credentials so dev data can't be confused with prod:
+
+| Email                       | Password    | Role   |
+| --------------------------- | ----------- | ------ |
+| `dev@team-hub.local`        | `Dev12345`  | Admin  |
+| `alex.dev@team-hub.local`   | `Dev12345`  | Member |
+| `sam.dev@team-hub.local`    | `Dev12345`  | Member |
+| `jordan.dev@team-hub.local` | `Dev12345`  | Member |
+
+Dev workspace is "Dev Sandbox" plus a secondary "QA Playground" for testing workspace switching, with edge-case rows (long titles, no assignee, no due date, fully-completed goals).
 
 ---
 
